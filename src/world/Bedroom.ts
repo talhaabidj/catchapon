@@ -215,13 +215,13 @@ export function buildBedroom(): BedroomLayout {
   // Lighting — cozy night feel
   // ————————————————————————————————
 
-  // Dim ambient
-  const ambient = new THREE.AmbientLight(0x1a1530, 0.6);
+  // Bright ambient for a well-lit room
+  const ambient = new THREE.AmbientLight(0x3a3545, 1.5);
   group.add(ambient);
   lights.push(ambient);
 
   // Warm desk lamp (main light)
-  const deskLight = new THREE.PointLight(0xffd080, 1.2, 6, 1.5);
+  const deskLight = new THREE.PointLight(0xffe0a0, 2.0, 8, 1.2);
   deskLight.position.set(1.4, 1.6, -1.3);
   group.add(deskLight);
   lights.push(deskLight);
@@ -238,14 +238,14 @@ export function buildBedroom(): BedroomLayout {
   group.add(moonlight);
   lights.push(moonlight);
 
-  // Ceiling light (dim, warm)
-  const ceilingLight = new THREE.PointLight(0xffe8cc, 0.15, 8, 2);
+  // Ceiling light (bright room light)
+  const ceilingLight = new THREE.PointLight(0xfff5e6, 1.5, 12, 1.5);
   ceilingLight.position.set(0, 2.8, 0);
   group.add(ceilingLight);
   lights.push(ceilingLight);
 
   // Collection wall accent light
-  const wallLight = new THREE.SpotLight(0x7c6ef0, 0.4, 4, Math.PI / 6, 0.5);
+  const wallLight = new THREE.SpotLight(0x8a7deb, 1.0, 6, Math.PI / 5, 0.5);
   wallLight.position.set(-HALF_W + 0.5, 2.4, -0.2);
   wallLight.target.position.set(-HALF_W + 0.04, 1.4, -0.2);
   group.add(wallLight);
