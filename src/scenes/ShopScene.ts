@@ -64,6 +64,12 @@ import {
   hideEndingSoon,
   showToast,
 } from '../ui/shopHUD.js';
+import {
+  mountPauseUI,
+  unmountPauseUI,
+  showPauseMenu,
+  hidePauseMenu,
+} from '../ui/pauseUI.js';
 
 // Bounds
 const SHOP_HALF_W = 6.5;
@@ -160,6 +166,39 @@ export class ShopScene implements Scene {
     );
     this.scene3d.add(group);
 
+    // —— Spawn Task Targets (Floor Spots) ——
+    const spotGeo = new THREE.PlaneGeometry(0.6, 0.6);
+    // Dark translucent puddle to represent a dirty floor spot
+    const spotMat = new THREE.MeshStandardMaterial({
+      color: 0x111115,
+      roughness: 0.1, // Shiny liquid
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false, // Prevents Z-fighting
+    });
+
+    const activeTasks = this.tasks.getTasks();
+    activeTasks.forEach((task) => {
+      const template = TASK_TEMPLATES.find((t) => t.id === task.templateId);
+      if (template?.targetType === 'floor') {
+        const spot = new THREE.Mesh(spotGeo, spotMat);
+        // Random placement near the center aisle
+        const rx = (Math.random() - 0.5) * 6; // Avoid walls
+        const rz = (Math.random() - 0.5) * 4;
+        spot.position.set(rx, 0.01, rz);
+        spot.rotation.x = -Math.PI / 2;
+        spot.name = task.targetId;
+
+        spot.userData['interactable'] = true;
+        spot.userData['interactType'] = 'floor-spot';
+        spot.userData['prompt'] = 'Mop floor';
+        spot.userData['targetId'] = task.targetId;
+
+        this.scene3d.add(spot);
+        interactables.push(spot);
+      }
+    });
+
     // —— Register interactables ——
     this.interaction.setInteractables(interactables);
 
@@ -169,8 +208,21 @@ export class ShopScene implements Scene {
 
     // —— Mount HUD ——
     mountShopHUD();
+    mountPauseUI();
     this.updateHUD();
     this.renderTasks();
+
+    // —— Pause Logic ——
+    this.controller.onPause = () => {
+      this.game.isPaused = true;
+      showPauseMenu(() => {
+        // Resume callback
+        hidePauseMenu();
+        this.game.isPaused = false;
+        // re-request pointer lock
+        this.game.canvas.requestPointerLock();
+      });
+    };
 
     // —— Wire token buy buttons ——
     document.querySelectorAll('.token-buy-btn').forEach((btn) => {
@@ -295,6 +347,7 @@ export class ShopScene implements Scene {
     this.controller.dispose();
     this.interaction.dispose();
     unmountShopHUD();
+    unmountPauseUI();
     window.removeEventListener('resize', this.onResize);
 
     this.scene3d.traverse((obj) => {
@@ -330,11 +383,15 @@ export class ShopScene implements Scene {
   private handleInteraction(type: string, object: THREE.Object3D) {
     switch (type) {
       case 'machine':
-        // Try task completion first, then pull
         if (this.tryCompleteNearbyTask(object.userData['machineId'] as string)) {
           return; // Completed a task
         }
         this.handleMachinePull(object);
+        break;
+      case 'floor-spot':
+        if (this.tryCompleteNearbyTask(object.userData['targetId'] as string)) {
+          object.visible = false; // Hide cleaned spot
+        }
         break;
       case 'token-station':
         this.handleTokenStation();
@@ -447,7 +504,9 @@ export class ShopScene implements Scene {
    * Auto-completes when interacting near the machine target.
    * Returns true if a task was completed.
    */
-  private tryCompleteNearbyTask(machineId?: string): boolean {
+  private tryCompleteNearbyTask(targetId?: string): boolean {
+    if (!targetId) return false;
+
     const tasks = this.tasks.getTasks();
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i]!;
@@ -456,12 +515,8 @@ export class ShopScene implements Scene {
       const template = TASK_TEMPLATES.find((t) => t.id === task.templateId);
       if (!template) continue;
 
-      // Match: floor tasks complete near any machine, machine tasks match target
-      const isMatch =
-        template.targetType === 'floor' ||
-        (template.targetType === 'machine' && task.targetId === machineId);
-
-      if (isMatch && this.tasks.completeTask(i)) {
+      // Exact targeted interaction required
+      if (task.targetId === targetId && this.tasks.completeTask(i)) {
         const reward = this.tasks.getTaskReward(task.templateId);
         const timeCost = this.tasks.getTaskTimeCost(task.templateId);
         this.economy.earnMoney(reward);
@@ -469,15 +524,15 @@ export class ShopScene implements Scene {
         this.time.advance(timeCost);
 
         // Update maintenance state based on task
-        if (machineId) {
+        if (template.targetType === 'machine') {
           if (template.type === 'wipe_glass') {
-            this.maintenance.cleanMachine(machineId);
+            this.maintenance.cleanMachine(targetId);
           } else if (template.type === 'restock') {
-            this.maintenance.restockMachine(machineId);
+            this.maintenance.restockMachine(targetId);
           } else if (template.type === 'fix_jam') {
-            this.maintenance.fixJam(machineId);
+            this.maintenance.fixJam(targetId);
           } else if (template.type === 'rewire') {
-            this.maintenance.rewire(machineId);
+            this.maintenance.rewire(targetId);
           }
         }
 

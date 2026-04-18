@@ -27,6 +27,8 @@ export class FirstPersonController {
   private input: Input;
   private enabled = false;
   private isPointerLocked = false;
+  
+  public onPause?: () => void;
 
   // Current orientation
   private yaw = 0; // rotation around Y-axis
@@ -124,8 +126,13 @@ export class FirstPersonController {
   };
 
   private onPointerLockChange = () => {
-    this.isPointerLocked =
-      document.pointerLockElement === this.domElement;
+    const wasLocked = this.isPointerLocked;
+    this.isPointerLocked = document.pointerLockElement === this.domElement;
+    
+    // If the controller expects pointer lock but it is lost, trigger pause
+    if (this.enabled && wasLocked && !this.isPointerLocked) {
+      if (this.onPause) this.onPause();
+    }
   };
 
   dispose() {

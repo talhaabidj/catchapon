@@ -37,6 +37,13 @@ import {
   updatePCStats,
   updateCollectionOverlay,
 } from '../ui/bedroomUI.js';
+import {
+  mountPauseUI,
+  unmountPauseUI,
+  showPauseMenu,
+  hidePauseMenu,
+  isPauseMenuVisible,
+} from '../ui/pauseUI.js';
 
 // Room bounds for collision
 const ROOM_HALF_W = 2.3; // slightly inside 2.5 walls
@@ -85,6 +92,21 @@ export class BedroomScene implements Scene {
 
     // —— Mount UI ——
     mountBedroomUI();
+    mountPauseUI();
+
+    // —— Pause Logic ——
+    this.controller.onPause = () => {
+      // If we are actually viewing an overlay natively (like PC or Collection),
+      // ESC simply closes that overlay in update(). But if we are freely walking:
+      if (!isAnyOverlayOpen()) {
+        this.game.isPaused = true;
+        showPauseMenu(() => {
+          hidePauseMenu();
+          this.game.isPaused = false;
+          this.game.canvas.requestPointerLock();
+        });
+      }
+    };
 
     // —— Update 3D collection wall with owned items ——
     const collWall = group.getObjectByName('collection-wall');
@@ -106,7 +128,7 @@ export class BedroomScene implements Scene {
     const input = this.game.input;
 
     // —— Handle overlay toggling ——
-    if (isAnyOverlayOpen()) {
+    if (isAnyOverlayOpen() || isPauseMenuVisible()) {
       // Controller disabled while overlay is open
       this.controller.setEnabled(false);
 
@@ -156,6 +178,7 @@ export class BedroomScene implements Scene {
     this.controller.dispose();
     this.interaction.dispose();
     unmountBedroomUI();
+    unmountPauseUI();
     window.removeEventListener('resize', this.onResize);
 
     // Dispose 3D resources

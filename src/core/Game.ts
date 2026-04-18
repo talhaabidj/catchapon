@@ -17,6 +17,7 @@ export class Game {
 
   private clock = new THREE.Clock();
   private animationFrameId = 0;
+  public isPaused = false;
 
   constructor(container: HTMLElement) {
     // —— Renderer ——
@@ -60,7 +61,12 @@ export class Game {
   private loop = () => {
     this.animationFrameId = requestAnimationFrame(this.loop);
 
-    const dt = Math.min(this.clock.getDelta(), 1 / 30); // cap dt to avoid spiral of death
+    let dt = Math.min(this.clock.getDelta(), 1 / 30); // cap dt to avoid spiral of death
+    
+    if (this.isPaused) {
+      dt = 0; // Freeze time for scenes, but still let them render
+    }
+    
     this.sceneManager.update(dt);
     this.input.endFrame();
   };
