@@ -19,7 +19,9 @@ import type { Scene, MachineDefinition } from '../data/types.js';
 import type { Game } from '../core/Game.js';
 import { FirstPersonController } from '../core/FirstPersonController.js';
 import { InteractionSystem } from '../core/InteractionSystem.js';
-import { PLAYER_HEIGHT, PULL_TIME_COST } from '../core/Config.js';
+import { PLAYER_HEIGHT, PULL_TIME_COST, DEFAULT_SETTINGS } from '../core/Config.js';
+import { saveGameState } from '../core/Save.js';
+import type { GameState } from '../data/types.js';
 
 // Systems
 import { TimeSystem } from '../systems/TimeSystem.js';
@@ -340,7 +342,10 @@ export class ShopScene implements Scene {
     // Advance time
     this.time.advance(PULL_TIME_COST);
 
-    // Add to collection
+    // Duplicate detection
+    const isDuplicate = this.collection.isDuplicate(result.item.id);
+
+    // Add to collection (returns false if duplicate, but still track)
     this.collection.addItem(result.item.id);
     this.itemsObtainedThisNight.push(result.item.id);
 
@@ -353,8 +358,12 @@ export class ShopScene implements Scene {
       legendary: '#ffcc00',
     };
 
+    const displayName = isDuplicate
+      ? `${result.item.name} (DUPLICATE)`
+      : result.item.name;
+
     showPullResult(
-      result.item.name,
+      displayName,
       result.item.rarity,
       result.item.flavorText,
       accentColors[result.item.rarity] ?? '#7c6ef0',
@@ -438,7 +447,24 @@ export class ShopScene implements Scene {
     });
   }
 
+  /** Build the current GameState from system state */
+  private buildGameState(): GameState {
+    return {
+      version: 1,
+      nightsWorked: this.progression.getNightsWorked(),
+      money: this.economy.getMoney(),
+      tokens: this.economy.getTokens(),
+      ownedItemIds: this.collection.getOwnedItemIds(),
+      secretsTriggered: this.progression.getSecretsTriggered(),
+      settings: { ...DEFAULT_SETTINGS },
+    };
+  }
+
   private async returnHome() {
+    // Save game state
+    const gameState = this.buildGameState();
+    saveGameState(gameState);
+
     // Fade out
     const fade = document.createElement('div');
     fade.style.cssText = `
@@ -453,9 +479,9 @@ export class ShopScene implements Scene {
 
     await new Promise((r) => setTimeout(r, 700));
 
-    // Transition back to bedroom
+    // Transition back to bedroom with updated state
     const { BedroomScene } = await import('./BedroomScene.js');
-    await this.game.sceneManager.switchTo(new BedroomScene(this.game));
+    await this.game.sceneManager.switchTo(new BedroomScene(this.game, gameState));
     fade.remove();
   }
 

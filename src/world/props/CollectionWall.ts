@@ -1,11 +1,20 @@
 /**
  * CollectionWall — A wall-mounted display shelf/pegboard for gacha items.
  *
- * INTERACTABLE — opens the Album view.
- * In M5+ this will visually update with collected items.
+ * INTERACTABLE — opens the Collection overlay.
+ * Capsule spheres on shelves update to reflect owned items.
  */
 
 import * as THREE from 'three';
+
+// Rarity → color map
+const RARITY_COLORS: Record<string, number> = {
+  common: 0x9ca3af,
+  uncommon: 0x34d399,
+  rare: 0x60a5fa,
+  epic: 0xa78bfa,
+  legendary: 0xfbbf24,
+};
 
 export function createCollectionWall(): THREE.Group {
   const wall = new THREE.Group();
@@ -41,35 +50,34 @@ export function createCollectionWall(): THREE.Group {
     wall.add(shelfPlank);
   }
 
-  // —— Placeholder capsule items (small colored spheres on shelves) ——
-  const capsuleColors = [
-    0xff6b6b, 0x6baaff, 0x6bffaa, 0xffdd6b, 0xcc6bff,
-    0xff6bcc, 0x6bffdd, 0xaaaaaa, 0xffaa6b,
-  ];
+  // —— 9 item slots (3 per row) — initially dark empty slots ——
+  const slotGroup = new THREE.Group();
+  slotGroup.name = 'collection-slots';
 
   for (let row = 0; row < 3; row++) {
-    const count = row === 0 ? 4 : row === 1 ? 3 : 2; // fewer on top
-    for (let i = 0; i < count; i++) {
-      const colorIdx = row * 4 + i;
-      const color = capsuleColors[colorIdx % capsuleColors.length]!;
-      const capsuleMat = new THREE.MeshStandardMaterial({
-        color,
-        roughness: 0.5,
-        metalness: 0.2,
+    for (let col = 0; col < 3; col++) {
+      const slotMat = new THREE.MeshStandardMaterial({
+        color: 0x1a1a24,
+        roughness: 0.7,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.5,
       });
-      const capsule = new THREE.Mesh(
+      const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(0.035, 8, 6),
-        capsuleMat,
+        slotMat,
       );
-      const spacing = 1.0 / (count + 1);
-      capsule.position.set(
-        -0.5 + (i + 1) * spacing,
+      const spacing = 1.0 / 4; // 3 items per row, centered
+      sphere.position.set(
+        -0.5 + (col + 1) * spacing,
         -0.3 + row * 0.35 + 0.06,
         0.06,
       );
-      wall.add(capsule);
+      sphere.name = `slot-${row}-${col}`;
+      slotGroup.add(sphere);
     }
   }
+  wall.add(slotGroup);
 
   // —— Label frame on top ——
   const labelMat = new THREE.MeshStandardMaterial({
@@ -85,4 +93,33 @@ export function createCollectionWall(): THREE.Group {
   wall.add(label);
 
   return wall;
+}
+
+/**
+ * Update the collection wall to visually reflect owned items.
+ * Maps owned items to shelf slots by color (rarity-based).
+ */
+export function updateCollectionWallVisuals(
+  wallGroup: THREE.Group,
+  ownedItems: Array<{ rarity: string }>,
+): void {
+  const slots = wallGroup.getObjectByName('collection-slots');
+  if (!slots) return;
+
+  // Fill slots with owned item colors
+  let slotIdx = 0;
+  slots.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.name.startsWith('slot-')) {
+      if (slotIdx < ownedItems.length) {
+        const item = ownedItems[slotIdx]!;
+        const color = RARITY_COLORS[item.rarity] ?? 0x9ca3af;
+        const mat = child.material as THREE.MeshStandardMaterial;
+        mat.color.setHex(color);
+        mat.opacity = 1.0;
+        mat.emissive.setHex(color);
+        mat.emissiveIntensity = 0.2;
+      }
+      slotIdx++;
+    }
+  });
 }

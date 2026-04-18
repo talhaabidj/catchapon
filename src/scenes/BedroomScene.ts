@@ -7,15 +7,23 @@
  *
  * Uses the shared FirstPersonController for movement/look.
  * Uses InteractionSystem for raycaster-based "Press E" prompts.
+ *
+ * M5: Loads/saves game state; populates PC stats and collection from save.
  */
 
 import * as THREE from 'three';
-import type { Scene } from '../data/types.js';
+import type { Scene, GameState } from '../data/types.js';
 import type { Game } from '../core/Game.js';
 import { FirstPersonController } from '../core/FirstPersonController.js';
 import { InteractionSystem } from '../core/InteractionSystem.js';
 import { PLAYER_HEIGHT } from '../core/Config.js';
 import { buildBedroom } from '../world/Bedroom.js';
+import { updateCollectionWallVisuals } from '../world/props/CollectionWall.js';
+import { loadGameState, createDefaultGameState, saveGameState } from '../core/Save.js';
+import { getItemById } from '../data/items.js';
+import { CollectionSystem } from '../systems/CollectionSystem.js';
+import { EconomySystem } from '../systems/EconomySystem.js';
+import { ProgressionSystem } from '../systems/ProgressionSystem.js';
 import {
   mountBedroomUI,
   unmountBedroomUI,
@@ -26,6 +34,8 @@ import {
   showCollectionOverlay,
   hideCollectionOverlay,
   isAnyOverlayOpen,
+  updatePCStats,
+  updateCollectionOverlay,
 } from '../ui/bedroomUI.js';
 
 // Room bounds for collision
@@ -39,7 +49,10 @@ export class BedroomScene implements Scene {
   private controller: FirstPersonController;
   private interaction: InteractionSystem;
 
-  constructor(game: Game) {
+  // Persisted state
+  private gameState: GameState;
+
+  constructor(game: Game, gameState?: GameState) {
     this.game = game;
     this.scene3d = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
@@ -53,6 +66,9 @@ export class BedroomScene implements Scene {
       this.game.input,
     );
     this.interaction = new InteractionSystem();
+
+    // Load game state: use passed-in (from shop return) or load from save
+    this.gameState = gameState ?? loadGameState() ?? createDefaultGameState();
   }
 
   init() {
@@ -70,8 +86,20 @@ export class BedroomScene implements Scene {
     // —— Mount UI ——
     mountBedroomUI();
 
+    // —— Update 3D collection wall with owned items ——
+    const collWall = group.getObjectByName('collection-wall');
+    if (collWall) {
+      const ownedItems = this.gameState.ownedItemIds
+        .map((id) => getItemById(id))
+        .filter((item): item is NonNullable<typeof item> => item != null);
+      updateCollectionWallVisuals(collWall as THREE.Group, ownedItems);
+    }
+
     // —— Resize ——
     window.addEventListener('resize', this.onResize);
+
+    // —— Save state on entering bedroom ——
+    saveGameState(this.gameState);
   }
 
   update(dt: number) {
@@ -148,11 +176,13 @@ export class BedroomScene implements Scene {
   private handleInteraction(type: string) {
     switch (type) {
       case 'pc':
+        updatePCStats(this.gameState);
         showPCOverlay();
         this.controller.setEnabled(false);
         break;
 
       case 'collection':
+        updateCollectionOverlay(this.gameState.ownedItemIds);
         showCollectionOverlay();
         this.controller.setEnabled(false);
         break;
@@ -184,8 +214,15 @@ export class BedroomScene implements Scene {
     // Wait for fade, then transition
     await new Promise((r) => setTimeout(r, 700));
 
+    // Create systems from save state
+    const economy = new EconomySystem(this.gameState.money, this.gameState.tokens);
+    const collection = new CollectionSystem(this.gameState.ownedItemIds);
+    const progression = new ProgressionSystem(this.gameState.nightsWorked);
+
     const { ShopScene } = await import('./ShopScene.js');
-    await this.game.sceneManager.switchTo(new ShopScene(this.game));
+    await this.game.sceneManager.switchTo(
+      new ShopScene(this.game, economy, collection, progression),
+    );
 
     // Remove fade (the new scene will handle its own visuals)
     fade.remove();

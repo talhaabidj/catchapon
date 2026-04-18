@@ -150,11 +150,140 @@
 }
 
 /* ————————————————————————————————
-  Collection Empty State
+  Collection Panel
    ———————————————————————————————— */
+.collection-panel {
+  max-width: 560px;
+}
+
 .collection-empty {
   text-align: center;
   color: var(--color-text-dim);
   font-size: var(--text-sm);
   padding: var(--space-12) 0;
 }
+
+/* ————————————————————————————————
+  Set Groups
+   ———————————————————————————————— */
+.set-group {
+  margin-bottom: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.set-group.set-complete {
+  border-color: rgba(124, 110, 240, 0.3);
+}
+
+.set-header {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+}
+
+.set-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.set-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.02em;
+}
+
+.set-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+}
+
+.set-progress-bar {
+  height: 3px;
+  background: var(--color-bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.set-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-accent-hover));
+  border-radius: 2px;
+  transition: width 0.4s var(--ease-out);
+}
+
+.set-reward {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-warning);
+  font-style: italic;
+}
+
+/* ————————————————————————————————
+  Item Cards
+   ———————————————————————————————— */
+.set-items {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--color-border);
+}
+
+.item-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-2);
+  background: var(--color-bg-elevated);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.item-card:hover {
+  background: var(--color-surface);
+}
+
+.item-card.locked {
+  opacity: 0.4;
+}
+
+.item-card.locked:hover {
+  opacity: 0.5;
+}
+
+.item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.locked-icon {
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+}
+
+.item-name {
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.item-rarity {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-dim);
+}
+
