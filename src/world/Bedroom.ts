@@ -148,7 +148,7 @@ export function buildBedroom(): BedroomLayout {
   // Desk — back-right corner, flush against right wall
   const desk = createDesk();
   desk.position.set(1.65, 0, -0.7);
-  desk.rotation.y = -Math.PI / 2;
+  desk.rotation.y = Math.PI / 2;
   group.add(desk);
 
   // PC on desk
@@ -160,8 +160,8 @@ export function buildBedroom(): BedroomLayout {
 
   // Chair — in front of desk
   const chair = createChair();
-  chair.position.set(1.25, 0, -0.7);
-  chair.rotation.y = Math.PI * 0.6;
+  chair.position.set(1.15, 0, -0.6);
+  chair.rotation.y = Math.PI / 2 - 0.2; // Slight natural swivel
   group.add(chair);
 
   // Door — front wall, center-right
