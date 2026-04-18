@@ -26,5 +26,5 @@ dist-ssr
 # Planning and Documentation
 PLAN.md
 AGENTS.md
-.logs/
 documentation/
+.logs/
