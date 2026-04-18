@@ -216,36 +216,41 @@ export function buildBedroom(): BedroomLayout {
   // ————————————————————————————————
 
   // Bright ambient for a well-lit room
-  const ambient = new THREE.AmbientLight(0x3a3545, 1.5);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.4);
   group.add(ambient);
   lights.push(ambient);
 
-  // Warm desk lamp (main light)
-  const deskLight = new THREE.PointLight(0xffe0a0, 2.0, 8, 1.2);
+  // Warm desk lamp (main light) ~400 Lumens
+  const deskLight = new THREE.PointLight(0xffe0a0, 1.0, 0, 2);
+  deskLight.power = 400;
   deskLight.position.set(1.4, 1.6, -1.3);
   group.add(deskLight);
   lights.push(deskLight);
 
-  // Monitor glow (cool accent)
-  const monitorGlow = new THREE.PointLight(0x6060ff, 0.4, 3, 2);
+  // Monitor glow (cool accent) ~50 Lumens
+  const monitorGlow = new THREE.PointLight(0x6060ff, 1.0, 0, 2);
+  monitorGlow.power = 50;
   monitorGlow.position.set(1.5, 1.1, -1.2);
   group.add(monitorGlow);
   lights.push(monitorGlow);
 
-  // Soft moonlight through window
-  const moonlight = new THREE.PointLight(0x4466aa, 0.3, 5, 2);
+  // Soft moonlight through window ~100 Lumens
+  const moonlight = new THREE.PointLight(0x4466aa, 1.0, 0, 2);
+  moonlight.power = 100;
   moonlight.position.set(0.6, 2.0, -HALF_D + 0.3);
   group.add(moonlight);
   lights.push(moonlight);
 
-  // Ceiling light (bright room light)
-  const ceilingLight = new THREE.PointLight(0xfff5e6, 1.5, 12, 1.5);
+  // Ceiling light (bright room light) ~1500 Lumens
+  const ceilingLight = new THREE.PointLight(0xfff5e6, 1.0, 0, 2);
+  ceilingLight.power = 1500;
   ceilingLight.position.set(0, 2.8, 0);
   group.add(ceilingLight);
   lights.push(ceilingLight);
 
-  // Collection wall accent light
-  const wallLight = new THREE.SpotLight(0x8a7deb, 1.0, 6, Math.PI / 5, 0.5);
+  // Collection wall accent light ~800 Lumens
+  const wallLight = new THREE.SpotLight(0x8a7deb, 1.0, 0, Math.PI / 5, 0.5, 2);
+  wallLight.power = 800;
   wallLight.position.set(-HALF_W + 0.5, 2.4, -0.2);
   wallLight.target.position.set(-HALF_W + 0.04, 1.4, -0.2);
   group.add(wallLight);

@@ -276,14 +276,14 @@ export function buildShopFloor(
   // ————————————————————————————————
 
   // Ambient 
-  const ambient = new THREE.AmbientLight(0x28283a, 1.5);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
   group.add(ambient);
 
   // Ceiling strip lights (fluorescent feel)
   for (let i = 0; i < 4; i++) {
     const stripLight = new THREE.RectAreaLight(
       0xffffff,
-      3.0,
+      50, // Higher intensity for RectAreaLight in physically correct mode
       2.5,
       0.15,
     );
@@ -292,22 +292,25 @@ export function buildShopFloor(
     group.add(stripLight);
   }
 
-  // Back row lights
+  // Back row lights (~1500 Lumens each)
   for (let i = 0; i < 3; i++) {
-    const light = new THREE.PointLight(0xe6eaff, 1.2, 12, 1.5);
+    const light = new THREE.PointLight(0xe6eaff, 1.0, 0, 2);
+    light.power = 1500;
     light.position.set(-3 + i * 3, 3.5, -3);
     group.add(light);
   }
 
-  // Front row lights (warmer)
+  // Front row lights (warmer, ~1500 Lumens each)
   for (let i = 0; i < 3; i++) {
-    const light = new THREE.PointLight(0xfff0dd, 1.2, 12, 1.5);
+    const light = new THREE.PointLight(0xfff0dd, 1.0, 0, 2);
+    light.power = 1500;
     light.position.set(-3 + i * 3, 3.5, 2);
     group.add(light);
   }
 
-  // Emergency / accent lighting near exit
-  const exitLight = new THREE.PointLight(0xff5555, 0.8, 5, 1.5);
+  // Emergency / accent lighting near exit (~800 Lumens)
+  const exitLight = new THREE.PointLight(0xff5555, 1.0, 0, 2);
+  exitLight.power = 800;
   exitLight.position.set(0, 2.8, HALF_D - 0.5);
   group.add(exitLight);
 
