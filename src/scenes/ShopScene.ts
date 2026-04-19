@@ -590,38 +590,46 @@ export class ShopScene implements Scene {
     const unowned = ITEMS.filter((item) => !this.collection.hasItem(item.id));
     if (unowned.length === 0) return; // Player has everything!
 
-    const received = unowned[Math.floor(Math.random() * unowned.length)]!;
+    // Disable controller immediately to capture state and prevent movement loop issues
+    this.controller.setEnabled(false);
+    showShopPrompt('Trading...');
 
-    // Remove the traded item conceptually (we don't actually remove from collection
-    // since the CollectionSystem tracks unique ownership — just add the new one)
-    this.collection.addItem(received.id);
-    this.itemsObtainedThisNight.push(received.id);
-    this.time.advance(PULL_TIME_COST);
+    setTimeout(() => {
+      hideShopPrompt();
 
-    // Show reveal
-    const accentColors: Record<string, string> = {
-      common: '#aaaaaa',
-      uncommon: '#44cc44',
-      rare: '#4488ff',
-      epic: '#cc44ff',
-      legendary: '#ffcc00',
-    };
+      const received = unowned[Math.floor(Math.random() * unowned.length)]!;
 
-    const tradeItem = getItemById(tradeAwayId);
-    const tradeName = tradeItem ? tradeItem.name : 'an item';
+      // Remove the traded item conceptually (we don't actually remove from collection
+      // since the CollectionSystem tracks unique ownership — just add the new one)
+      this.collection.addItem(received.id);
+      this.itemsObtainedThisNight.push(received.id);
+      this.time.advance(PULL_TIME_COST);
 
-    showPullResult(
-      `${received.name}`,
-      received.rarity,
-      `Traded ${tradeName} → received ${received.name}!`,
-      accentColors[received.rarity] ?? '#7c6ef0',
-      () => {
-        hidePullResult();
-        this.controller.setEnabled(true);
-        this.game.canvas.requestPointerLock();
-      }
-    );
-    this.updateHUD();
+      // Show reveal
+      const accentColors: Record<string, string> = {
+        common: '#aaaaaa',
+        uncommon: '#44cc44',
+        rare: '#4488ff',
+        epic: '#cc44ff',
+        legendary: '#ffcc00',
+      };
+
+      const tradeItem = getItemById(tradeAwayId);
+      const tradeName = tradeItem ? tradeItem.name : 'an item';
+
+      showPullResult(
+        `${received.name}`,
+        received.rarity,
+        `Traded ${tradeName} → received ${received.name}!`,
+        accentColors[received.rarity] ?? '#7c6ef0',
+        () => {
+          hidePullResult();
+          this.controller.setEnabled(true);
+          this.game.canvas.requestPointerLock();
+        }
+      );
+      this.updateHUD();
+    }, 1000);
   }
 
   // ————————————————————————————————
