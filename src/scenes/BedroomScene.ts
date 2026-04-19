@@ -31,6 +31,7 @@ import {
   hideInteractPrompt,
   showPCOverlay,
   hidePCOverlay,
+  isPCOverlayVisible,
   hideCollectionOverlay,
   isCollectionOverlayVisible,
   isAnyOverlayOpen,
@@ -128,10 +129,31 @@ export class BedroomScene implements Scene {
   update(dt: number) {
     const input = this.game.input;
 
-    // —— Handle overlay toggling ——
-    if (isAnyOverlayOpen() || isPauseMenuVisible()) {
-      // Controller disabled while overlay is open
+    // —— Pause menu handling ——
+    if (isPauseMenuVisible()) {
       this.controller.setEnabled(false);
+
+      if (input.isMenuPressed()) {
+        hidePauseMenu();
+        this.game.isPaused = false;
+        this.controller.setEnabled(true);
+        this.game.canvas.requestPointerLock();
+      }
+
+      this.game.renderer.render(this.scene3d, this.camera);
+      return;
+    }
+
+    // —— Overlay handling ——
+    if (isAnyOverlayOpen()) {
+      const pcOpen = isPCOverlayVisible();
+
+      // PC overlay needs cursor; collection should stay pointer-locked.
+      if (pcOpen) {
+        this.controller.setEnabled(false);
+      } else if (!this.controller.isEnabled()) {
+        this.controller.setEnabled(true);
+      }
 
       // Collection viewer A/D navigation
       if (isCollectionOverlayVisible()) {
@@ -143,17 +165,12 @@ export class BedroomScene implements Scene {
         }
       }
 
-      // Escape to close overlays or pause menu
+      // Escape to close overlays
       if (input.isMenuPressed()) {
-        if (isPauseMenuVisible()) {
-          hidePauseMenu();
-          this.game.isPaused = false;
-          this.game.canvas.requestPointerLock();
-        } else {
-          hidePCOverlay();
-          hideCollectionOverlay();
-        }
+        hidePCOverlay();
+        hideCollectionOverlay();
         this.controller.setEnabled(true);
+        this.game.canvas.requestPointerLock();
       }
 
       // Render but don't process movement
@@ -228,7 +245,8 @@ export class BedroomScene implements Scene {
 
       case 'collection':
         openCollectionViewer(this.gameState.ownedItemIds);
-        this.controller.setEnabled(false);
+        this.controller.setEnabled(true);
+        this.game.canvas.requestPointerLock();
         break;
 
       case 'door':
@@ -238,7 +256,6 @@ export class BedroomScene implements Scene {
   }
 
   private async startNightShift() {
-    this.controller.setEnabled(false);
     hideInteractPrompt();
 
     // Quick fade out

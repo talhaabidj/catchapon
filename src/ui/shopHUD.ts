@@ -5,6 +5,7 @@
  */
 
 const SHOP_HUD_ID = 'shop-hud';
+let pullDismissHandler: ((e: KeyboardEvent) => void) | null = null;
 
 export function mountShopHUD() {
   const uiRoot = document.getElementById('ui-root');
@@ -41,7 +42,7 @@ export function mountShopHUD() {
       <div class="pull-item-name" id="pull-item-name"></div>
       <div class="pull-item-rarity" id="pull-item-rarity"></div>
       <div class="pull-item-flavor" id="pull-item-flavor"></div>
-      <div class="pull-dismiss" id="pull-dismiss-text">Press any key/click to continue</div>
+      <div class="pull-dismiss" id="pull-dismiss-text">Press Q to continue</div>
     </div>
 
     <div class="shop-token-overlay hidden" id="token-overlay">
@@ -68,6 +69,7 @@ export function mountShopHUD() {
       <div class="overlay-panel night-summary-panel">
         <h2>Night Complete</h2>
         <div class="night-summary" id="night-summary"></div>
+        <p class="pull-dismiss">Press Q to return home</p>
         <button class="night-continue-btn" id="night-continue">Return Home</button>
       </div>
     </div>
@@ -82,6 +84,10 @@ export function mountShopHUD() {
 }
 
 export function unmountShopHUD() {
+  if (pullDismissHandler) {
+    window.removeEventListener('keydown', pullDismissHandler);
+    pullDismissHandler = null;
+  }
   document.getElementById(SHOP_HUD_ID)?.remove();
 }
 
@@ -153,6 +159,7 @@ export function showPullResult(
   rarity: string,
   flavor: string,
   accentColor: string,
+  dismissKeyCode = 'KeyQ',
   onDismiss?: () => void
 ) {
   const el = document.getElementById('pull-result');
@@ -169,14 +176,25 @@ export function showPullResult(
     flavorEl.textContent = `"${flavor}"`;
     el.classList.remove('hidden');
 
+    const dismissText = document.getElementById('pull-dismiss-text');
+    if (dismissText) {
+      dismissText.textContent = `Press ${dismissKeyCode.replace('Key', '')} to continue`;
+    }
+
     if (onDismiss) {
-      const dismissHandler = () => {
-        el.removeEventListener('click', dismissHandler);
+      const dismissHandler = (e: KeyboardEvent) => {
+        if (e.code !== dismissKeyCode) return;
         window.removeEventListener('keydown', dismissHandler);
+        pullDismissHandler = null;
         onDismiss();
       };
+
+      if (pullDismissHandler) {
+        window.removeEventListener('keydown', pullDismissHandler);
+      }
+
       setTimeout(() => {
-        el.addEventListener('click', dismissHandler);
+        pullDismissHandler = dismissHandler;
         window.addEventListener('keydown', dismissHandler);
       }, 300); // Small delay to prevent accidental instant dismissal
     }
@@ -184,6 +202,10 @@ export function showPullResult(
 }
 
 export function hidePullResult() {
+  if (pullDismissHandler) {
+    window.removeEventListener('keydown', pullDismissHandler);
+    pullDismissHandler = null;
+  }
   document.getElementById('pull-result')?.classList.add('hidden');
 }
 

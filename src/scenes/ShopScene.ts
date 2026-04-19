@@ -102,6 +102,7 @@ export class ShopScene implements Scene {
   private endingSoonShown = false;
   private witchingHourShown = false;
   private secretsTriggeredThisNight: string[] = [];
+  private isPullInProgress = false;
 
   // Screen shake
   private shakeIntensity = 0;
@@ -270,15 +271,22 @@ export class ShopScene implements Scene {
 
     // —— Night end overlay active ——
     if (isNightEndVisible()) {
-      this.controller.setEnabled(false);
+      // Keep pointer lock; allow keyboard-only continue flow.
+      if (input.isKeyJustPressed('KeyQ')) {
+        this.returnHome();
+      }
       this.game.renderer.render(this.scene3d, this.camera);
       return;
     }
 
     // —— Pull result displayed ——
     if (isPullResultVisible()) {
-      // The event listener inside shopHUD.ts handles the dismissal now.
-      // We just pause update processing while the reveal is open.
+      this.game.renderer.render(this.scene3d, this.camera);
+      return;
+    }
+
+    // —— Pull anticipation lock (during crank animation) ——
+    if (this.isPullInProgress) {
       this.game.renderer.render(this.scene3d, this.camera);
       return;
     }
@@ -458,6 +466,8 @@ export class ShopScene implements Scene {
   }
 
   private handleMachinePull(object: THREE.Object3D) {
+    if (this.isPullInProgress) return;
+
     const machineId = object.userData['machineId'] as string;
     if (!machineId) return;
 
@@ -469,9 +479,7 @@ export class ShopScene implements Scene {
 
     // Check tokens
     if (!this.economy.spendPull()) return;
-
-    // We disable controller immediately so player can't look away during the crank sequence
-    this.controller.setEnabled(false);
+    this.isPullInProgress = true;
 
     // Audio sequence for anticipation (M14)
     // Here we trigger the Howler global sound for a gacha capsule crank...
@@ -485,7 +493,10 @@ export class ShopScene implements Scene {
 
       // Find machine definition
       const machineDef = MACHINES.find((m) => m.id === machineId);
-      if (!machineDef) return;
+      if (!machineDef) {
+        this.isPullInProgress = false;
+        return;
+      }
 
       // Get maintenance state
       const machineState = this.maintenance.getState(machineId);
@@ -498,7 +509,7 @@ export class ShopScene implements Scene {
       );
 
       if (!result) {
-        this.controller.setEnabled(true);
+        this.isPullInProgress = false;
         return;
       }
 
@@ -530,10 +541,10 @@ export class ShopScene implements Scene {
         result.item.rarity,
         result.item.flavorText,
         accentColors[result.item.rarity] ?? '#7c6ef0',
+        'KeyQ',
         () => {
           hidePullResult();
-          this.controller.setEnabled(true);
-          this.game.canvas.requestPointerLock();
+          this.isPullInProgress = false;
         }
       );
 
@@ -621,6 +632,8 @@ export class ShopScene implements Scene {
   // ————————————————————————————————
 
   private handleWondertrade() {
+    if (this.isPullInProgress) return;
+
     // Need at least 1 item owned
     const owned = this.collection.getOwnedItemIds();
     if (owned.length === 0) return;
@@ -632,8 +645,7 @@ export class ShopScene implements Scene {
     const unowned = ITEMS.filter((item) => !this.collection.hasItem(item.id));
     if (unowned.length === 0) return; // Player has everything!
 
-    // Disable controller immediately to capture state and prevent movement loop issues
-    this.controller.setEnabled(false);
+    this.isPullInProgress = true;
     showShopPrompt('Trading...');
 
     setTimeout(() => {
@@ -664,10 +676,10 @@ export class ShopScene implements Scene {
         received.rarity,
         `Traded ${tradeName} → received ${received.name}!`,
         accentColors[received.rarity] ?? '#7c6ef0',
+        'KeyQ',
         () => {
           hidePullResult();
-          this.controller.setEnabled(true);
-          this.game.canvas.requestPointerLock();
+          this.isPullInProgress = false;
         }
       );
       this.updateHUD();
@@ -707,7 +719,6 @@ export class ShopScene implements Scene {
     this.nightEnded = true;
 
     hideEndingSoon();
-    this.controller.setEnabled(false);
 
     // Complete night in progression
     this.progression.completeNight({

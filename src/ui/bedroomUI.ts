@@ -105,6 +105,10 @@ export function mountBedroomUI() {
   // Close button handlers
   document.getElementById('pc-overlay-close')?.addEventListener('click', () => {
     hidePCOverlay();
+
+    // Reacquire lock from a direct user click so browser activation rules allow it.
+    const canvas = document.querySelector('#canvas-container canvas') as HTMLCanvasElement | null;
+    canvas?.requestPointerLock();
   });
 }
 

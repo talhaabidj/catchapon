@@ -43,6 +43,7 @@ export class FirstPersonController {
   constructor(domElement: HTMLElement, input: Input) {
     this.domElement = domElement;
     this.input = input;
+    this.isPointerLocked = document.pointerLockElement === this.domElement;
 
     // Load user preferences
     const state = loadGameState();
@@ -63,16 +64,13 @@ export class FirstPersonController {
   attach(camera: THREE.PerspectiveCamera) {
     this.camera = camera;
     this.camera.position.y = PLAYER_HEIGHT;
-    this.enabled = true;
+    this.setEnabled(true);
   }
 
   /** Detach from camera and stop processing input */
   detach() {
-    this.setEnabled(false);
+    this.enabled = false;
     this.camera = null;
-    if (document.pointerLockElement === this.domElement) {
-      document.exitPointerLock();
-    }
   }
 
   /** Enable or disable the controller (e.g. when a modal opens) */
@@ -80,6 +78,13 @@ export class FirstPersonController {
     this.enabled = value;
     if (!value && document.pointerLockElement === this.domElement) {
       document.exitPointerLock();
+      return;
+    }
+
+    // Keep the cursor locked whenever controls are active, unless the
+    // player intentionally toggled cursor-free mode via Left Ctrl.
+    if (value && !this.cursorFreed && !this.isPointerLocked) {
+      this.requestPointerLock();
     }
   }
 
@@ -169,8 +174,5 @@ export class FirstPersonController {
       'pointerlockchange',
       this.onPointerLockChange,
     );
-    if (document.pointerLockElement === this.domElement) {
-      document.exitPointerLock();
-    }
   }
 }
