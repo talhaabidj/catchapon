@@ -49,8 +49,7 @@
 .taskbar-img {
   width: 18px;
   height: 18px;
-  border-radius: 50%;
-  box-shadow: 0 0 10px var(--color-accent-glow);
+  object-fit: contain; /* so transparent logo doesn't stretch or assume bounds */
 }
 
 .taskbar-clock {
@@ -171,8 +170,7 @@
   height: auto;
   display: block;
   margin: 0 auto var(--space-6);
-  border-radius: 50%;
-  box-shadow: 0 0 40px var(--color-accent-glow);
+  /* removed circle mask and glow to let transparent cat blend natively */
 }
 
 .hero-subtitle {
