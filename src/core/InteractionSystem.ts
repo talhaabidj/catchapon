@@ -23,53 +23,82 @@ export class InteractionSystem {
   private center = new THREE.Vector2(0, 0);
   private interactables: THREE.Object3D[] = [];
 
+  // Cached meshes to avoid traversing the scene graph every frame
+  private allMeshes: THREE.Mesh[] = [];
+  private meshToInteractable = new Map<THREE.Mesh, THREE.Object3D>();
+
+  // Throttling state
+  private lastCheckTime = 0;
+  private lastTarget: InteractionTarget | null = null;
+  private readonly CHECK_INTERVAL_MS = 100; // 10Hz
+
   /** Register objects to check against */
   setInteractables(objects: THREE.Object3D[]) {
     this.interactables = objects;
+    
+    // Build flat cache once
+    this.allMeshes = [];
+    this.meshToInteractable.clear();
+
+    for (const obj of this.interactables) {
+      if (obj.visible === false) continue; // Skip deeply hidden objects initially
+      obj.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+           this.allMeshes.push(child);
+           this.meshToInteractable.set(child, obj);
+        }
+      });
+    }
   }
 
   /**
    * Check what the player is looking at.
-   * Returns the nearest interactable within range, or null.
+   * Throttled to ~10Hz to save CPU overhead.
    */
   check(camera: THREE.Camera): InteractionTarget | null {
+    const now = performance.now();
+    if (now - this.lastCheckTime < this.CHECK_INTERVAL_MS) {
+       return this.lastTarget; 
+    }
+    this.lastCheckTime = now;
+
     this.raycaster.setFromCamera(this.center, camera);
     this.raycaster.far = INTERACT_RANGE;
 
-    // We need to collect all meshes from each interactable group
-    const allMeshes: THREE.Mesh[] = [];
-    const meshToInteractable = new Map<THREE.Mesh, THREE.Object3D>();
+    // Filter out invisible interactables on the fly (like cleared mop spots)
+    const activeMeshes = this.allMeshes.filter(m => {
+       const parent = this.meshToInteractable.get(m);
+       return parent && parent.visible;
+    });
 
-    for (const obj of this.interactables) {
-      obj.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          allMeshes.push(child);
-          meshToInteractable.set(child, obj);
-        }
-      });
+    const hits = this.raycaster.intersectObjects(activeMeshes, false);
+
+    if (hits.length === 0) {
+      this.lastTarget = null;
+      return null;
     }
 
-    const hits = this.raycaster.intersectObjects(allMeshes, false);
-
-    if (hits.length === 0) return null;
-
-    // Find the first hit that maps to an interactable
     for (const hit of hits) {
-      const parent = meshToInteractable.get(hit.object as THREE.Mesh);
+      const parent = this.meshToInteractable.get(hit.object as THREE.Mesh);
       if (parent) {
-        return {
+        this.lastTarget = {
           object: parent,
           type: (parent.userData['interactType'] as string) ?? 'unknown',
           prompt: (parent.userData['prompt'] as string) ?? 'Interact',
           distance: hit.distance,
         };
+        return this.lastTarget;
       }
     }
 
+    this.lastTarget = null;
     return null;
   }
 
   dispose() {
     this.interactables = [];
+    this.allMeshes = [];
+    this.meshToInteractable.clear();
+    this.lastTarget = null;
   }
 }

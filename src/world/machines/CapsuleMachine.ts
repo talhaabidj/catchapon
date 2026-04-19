@@ -38,153 +38,224 @@ export function createCapsuleMachine(
   const isPowered = state?.isPowered ?? true;
   const isLowStock = state?.stockLevel === 'low' || state?.stockLevel === 'empty';
 
-  // —— Body ——
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: 0x2a2a35,
-    roughness: 0.6,
-    metalness: 0.4,
-  });
-
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.85, 1.8, 0.75),
-    bodyMat,
-  );
-  body.position.set(0, 0.9, 0);
-  machine.add(body);
-
-  // —— Accent top band ——
-  const accentMat = new THREE.MeshStandardMaterial({
-    color: accentColor,
-    emissive: accentColor,
-    emissiveIntensity: isPowered ? 0.3 : 0.0,
-    roughness: 0.4,
-    metalness: 0.3,
-  });
-
-  const topBand = new THREE.Mesh(
-    new THREE.BoxGeometry(0.87, 0.1, 0.77),
-    accentMat,
-  );
-  topBand.position.set(0, 1.85, 0);
-  machine.add(topBand);
-
-  // —— Glass window (shows capsules inside) ——
-  const glassMat = new THREE.MeshStandardMaterial({
-    color: isDirty ? 0x3a3520 : 0x1a1a2e,
-    transparent: true,
-    opacity: isDirty ? 0.7 : 0.4,
-    roughness: isDirty ? 0.8 : 0.1,
-    metalness: 0.1,
-  });
-
-  const glass = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.6, 0.7),
-    glassMat,
-  );
-  glass.position.set(0, 1.2, 0.376);
-  machine.add(glass);
-
-  // —— Capsules inside (visible through glass) ——
-  if (!isLowStock) {
-    const capsuleGeo = new THREE.SphereGeometry(0.04, 6, 4);
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 4; col++) {
-        const hue = (row * 4 + col) * 30;
-        const capsuleMat = new THREE.MeshStandardMaterial({
-          color: new THREE.Color().setHSL(hue / 360, 0.6, 0.5),
-          roughness: 0.5,
-        });
-        const capsule = new THREE.Mesh(capsuleGeo, capsuleMat);
-        capsule.position.set(
-          -0.18 + col * 0.12,
-          0.95 + row * 0.12,
-          0.3,
-        );
-        machine.add(capsule);
-      }
-    }
-  }
-
-  // —— Coin slot ——
-  const slotMat = new THREE.MeshStandardMaterial({
-    color: 0x555560,
-    roughness: 0.3,
-    metalness: 0.7,
-  });
-  const slot = new THREE.Mesh(
-    new THREE.BoxGeometry(0.08, 0.015, 0.04),
-    slotMat,
-  );
-  slot.position.set(0.25, 1.0, 0.38);
-  machine.add(slot);
-
-  // —— Dispenser chute ——
-  const chuteMat = new THREE.MeshStandardMaterial({
-    color: 0x222228,
-    roughness: 0.7,
-  });
-  const chute = new THREE.Mesh(
-    new THREE.BoxGeometry(0.3, 0.15, 0.15),
-    chuteMat,
-  );
-  chute.position.set(0, 0.2, 0.35);
-  machine.add(chute);
-
-  // —— Turn handle (dial) ——
-  const handleMat = new THREE.MeshStandardMaterial({
-    color: accentColor,
-    roughness: 0.3,
-    metalness: 0.5,
-  });
-  const handle = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.06, 0.06, 0.04, 12),
-    handleMat,
-  );
-  handle.position.set(-0.25, 1.0, 0.39);
-  handle.rotation.x = Math.PI / 2;
-  machine.add(handle);
-
-  // —— Power LED ——
-  const ledColor = isPowered ? 0x44ff44 : 0xff2222;
-  const ledMat = new THREE.MeshStandardMaterial({
-    color: ledColor,
-    emissive: ledColor,
-    emissiveIntensity: 0.8,
-  });
-  const led = new THREE.Mesh(
-    new THREE.BoxGeometry(0.02, 0.02, 0.005),
-    ledMat,
-  );
-  led.position.set(0.35, 1.75, 0.376);
-  machine.add(led);
-
-  // —— Jam indicator (orange warning) ——
-  if (isJammed) {
-    const jamMat = new THREE.MeshStandardMaterial({
-      color: 0xff8800,
-      emissive: 0xff6600,
-      emissiveIntensity: 0.6,
+  const buildTier = (yOffset: number) => {
+    // Shared Materials
+    const metalMat = new THREE.MeshStandardMaterial({
+      color: 0x888888,
+      roughness: 0.3,
+      metalness: 0.8,
     });
-    const jamLight = new THREE.Mesh(
-      new THREE.BoxGeometry(0.04, 0.04, 0.005),
-      jamMat,
-    );
-    jamLight.position.set(-0.35, 1.75, 0.376);
-    machine.add(jamLight);
-  }
+    const plasticMat = new THREE.MeshStandardMaterial({
+      color: 0xeaeaea,
+      roughness: 0.5,
+      metalness: 0.1,
+    });
+    const darkMat = new THREE.MeshStandardMaterial({
+      color: 0x222222,
+      roughness: 0.9,
+    });
 
-  // —— Name label (colored bar on bottom) ——
-  const labelMat = new THREE.MeshStandardMaterial({
-    color: accentColor,
-    emissive: accentColor,
-    emissiveIntensity: 0.15,
-  });
-  const label = new THREE.Mesh(
-    new THREE.BoxGeometry(0.6, 0.05, 0.01),
-    labelMat,
-  );
-  label.position.set(0, 0.55, 0.376);
-  machine.add(label);
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: isDirty ? 0x3a3520 : 0xf0f8ff,
+      transparent: true,
+      opacity: isDirty ? 0.7 : 0.25,
+      roughness: isDirty ? 0.8 : 0.05,
+      metalness: 0.1,
+      depthWrite: false, 
+    });
+
+    // —— Lower Cabinet (Base mechanics) ——
+    const kickplate = new THREE.Mesh(new THREE.BoxGeometry(0.81, 0.15, 0.71), darkMat);
+    kickplate.position.set(0, 0.075 + yOffset, 0);
+    machine.add(kickplate);
+
+    const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.9, 0.75), plasticMat);
+    lowerBody.position.set(0, 0.6 + yOffset, 0);
+    machine.add(lowerBody);
+
+    // Chute recess
+    const chuteRecess = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.1), darkMat);
+    chuteRecess.position.set(0, 0.35 + yOffset, 0.33);
+    machine.add(chuteRecess);
+
+    const chuteFlap = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.23), glassMat);
+    chuteFlap.position.set(0, 0.35 + yOffset, 0.381);
+    chuteFlap.rotation.x = -Math.PI * 0.05; // Slightly angled inward
+    machine.add(chuteFlap);
+
+    // Giant Gacha Dial (Right-center aligned)
+    const dialHub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 32), metalMat);
+    dialHub.rotation.x = Math.PI / 2;
+    dialHub.position.set(0.18, 0.75 + yOffset, 0.38);
+    machine.add(dialHub);
+
+    // Crank Bowtie Action
+    const crankAccent = new THREE.MeshStandardMaterial({
+      color: accentColor, roughness: 0.3, metalness: 0.5
+    });
+    const crank = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.2, 0.06), crankAccent);
+    crank.position.set(0.18, 0.75 + yOffset, 0.41);
+    crank.rotation.z = Math.PI / 4; // Add slight diagonal torque for dynamic feel
+    machine.add(crank);
+
+    // Coin slot (Left side)
+    const coinPlate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.02), metalMat);
+    coinPlate.position.set(-0.2, 0.75 + yOffset, 0.38);
+    machine.add(coinPlate);
+    
+    const coinSlit = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.08, 0.03), darkMat);
+    coinSlit.position.set(-0.2, 0.75 + yOffset, 0.39);
+    machine.add(coinSlit);
+
+    // —— Display Box (The transparent acrylic upper housing) ——
+    const displayFloor = new THREE.Mesh(new THREE.BoxGeometry(0.81, 0.02, 0.71), metalMat);
+    displayFloor.position.set(0, 1.06 + yOffset, 0);
+    machine.add(displayFloor);
+
+    // 4 Colored Edge Pillars framing the glass
+    const pillarMat = new THREE.MeshStandardMaterial({
+      color: accentColor, roughness: 0.4, metalness: 0.3
+    });
+    const pillarGeo = new THREE.BoxGeometry(0.08, 0.6, 0.08);
+    
+    const pBL = new THREE.Mesh(pillarGeo, pillarMat); pBL.position.set(-0.385, 1.35 + yOffset, -0.335); machine.add(pBL);
+    const pBR = new THREE.Mesh(pillarGeo, pillarMat); pBR.position.set(0.385, 1.35 + yOffset, -0.335); machine.add(pBR);
+    const pFL = new THREE.Mesh(pillarGeo, pillarMat); pFL.position.set(-0.385, 1.35 + yOffset, 0.335); machine.add(pFL);
+    const pFR = new THREE.Mesh(pillarGeo, pillarMat); pFR.position.set(0.385, 1.35 + yOffset, 0.335); machine.add(pFR);
+
+    // The Glass Panes
+    const glassF = new THREE.Mesh(new THREE.PlaneGeometry(0.69, 0.6), glassMat);
+    glassF.position.set(0, 1.35 + yOffset, 0.375); machine.add(glassF);
+    
+    const glassB = new THREE.Mesh(new THREE.PlaneGeometry(0.69, 0.6), glassMat);
+    glassB.rotation.y = Math.PI; glassB.position.set(0, 1.35 + yOffset, -0.375); machine.add(glassB);
+    
+    const glassL = new THREE.Mesh(new THREE.PlaneGeometry(0.59, 0.6), glassMat);
+    glassL.rotation.y = -Math.PI / 2; glassL.position.set(-0.425, 1.35 + yOffset, 0); machine.add(glassL);
+    
+    const glassR = new THREE.Mesh(new THREE.PlaneGeometry(0.59, 0.6), glassMat);
+    glassR.rotation.y = Math.PI / 2; glassR.position.set(0.425, 1.35 + yOffset, 0); machine.add(glassR);
+
+    // Internal Dispensing Pipe Setup
+    const internalDispenser = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.1, 16), metalMat);
+    internalDispenser.position.set(0, 1.05 + yOffset, 0);
+    machine.add(internalDispenser);
+
+    // —— Chaos Capsules! (Chaotic Instanced Pile inside the tank) ——
+    if (!isLowStock) {
+      const capsuleCount = 45; // Huge pile!
+      const capsuleGeo = new THREE.SphereGeometry(0.045, 8, 8);
+      const capsuleMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.2,
+        metalness: 0.1,
+      });
+      const instancedCapsules = new THREE.InstancedMesh(capsuleGeo, capsuleMat, capsuleCount);
+      
+      const dummy = new THREE.Object3D();
+      const color = new THREE.Color();
+      
+      // We will lazily scatter them in a 3D grid layout slightly randomized
+      let i = 0;
+      for (let yLevel = 0; yLevel < 3; yLevel++) {
+        for (let xLevel = 0; xLevel < 5; xLevel++) {
+          for (let zLevel = 0; zLevel < 3; zLevel++) {
+            if (i >= capsuleCount) break;
+
+            const rx = -0.3 + (xLevel * 0.15) + (Math.random() * 0.05 - 0.025);
+            const rz = -0.2 + (zLevel * 0.2) + (Math.random() * 0.05 - 0.025);
+            const ry = 1.12 + (yLevel * 0.11) + (Math.random() * 0.04) + yOffset;
+            
+            // Jitter rotation so spheres feel chaotically piled if they have textures later
+            dummy.position.set(rx, ry, rz);
+            dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            dummy.updateMatrix();
+            instancedCapsules.setMatrixAt(i, dummy.matrix);
+            
+            color.setHSL(Math.random(), 0.8, 0.5);
+            instancedCapsules.setColorAt(i, color);
+            i++;
+          }
+        }
+      }
+      instancedCapsules.instanceMatrix.needsUpdate = true;
+      if (instancedCapsules.instanceColor) instancedCapsules.instanceColor.needsUpdate = true;
+      machine.add(instancedCapsules);
+    }
+
+    // —— Header / Marquee Sign (The Cap) ——
+    const topLid = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.15, 0.75), plasticMat);
+    topLid.position.set(0, 1.725 + yOffset, 0);
+    machine.add(topLid);
+
+    // Glowing Marquee Billboard Face
+    const marqueeBase = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.25, 0.06), metalMat);
+    marqueeBase.position.set(0, 1.85 + yOffset, 0.25);
+    marqueeBase.rotation.x = -0.15; // Angled back gracefully
+    machine.add(marqueeBase);
+
+    const labelMat = new THREE.MeshStandardMaterial({
+      color: accentColor,
+      emissive: accentColor,
+      emissiveIntensity: 0.4,
+    });
+    const marqueeLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.68, 0.23), labelMat);
+    marqueeLabel.position.set(0, 1.85 + yOffset, 0.282);
+    marqueeLabel.rotation.x = -0.15;
+    machine.add(marqueeLabel);
+
+    // —— Maintenance LED Clusters ——
+    const ledColor = isPowered ? 0x44ff44 : 0xff2222;
+    const ledMat = new THREE.MeshStandardMaterial({
+      color: ledColor, emissive: ledColor, emissiveIntensity: 0.8,
+    });
+    const led = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.02, 8), ledMat);
+    led.rotation.x = Math.PI / 2;
+    led.position.set(0.35, 1.725 + yOffset, 0.38);
+    machine.add(led);
+
+    if (isJammed) {
+      const jamMat = new THREE.MeshStandardMaterial({
+        color: 0xff8800, emissive: 0xff6600, emissiveIntensity: 0.8,
+      });
+      const jamLight = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.02, 8), jamMat);
+      jamLight.rotation.x = Math.PI / 2;
+      jamLight.position.set(-0.35, 1.725 + yOffset, 0.38);
+      machine.add(jamLight);
+    }
+
+    // Add mats to animate references
+    if (!machine.userData['animMats']) machine.userData['animMats'] = [];
+    machine.userData['animMats'].push({ accentMat: pillarMat, labelMat: labelMat });
+  };
+
+  // Build single tier machine
+  buildTier(0);
+
+  // Expose an animation callback for M15 Visual Polish
+  machine.userData['animate'] = (time: number, s?: MachineState) => {
+    const isClean = s?.cleanliness === 'clean';
+    const broken = s?.isJammed || !(s?.isPowered);
+
+    const mats = machine.userData['animMats'] as Array<any>;
+    mats.forEach(({ accentMat, labelMat }) => {
+      if (broken) {
+        // Flicker chaotically
+        const intensity = Math.random() > 0.8 ? 0.8 : 0.1;
+        accentMat.emissiveIntensity = intensity;
+        labelMat.emissiveIntensity = intensity * 0.5;
+      } else if (isClean) {
+        // Pulse warmly
+        const intensity = 0.5 + Math.sin(time * 3) * 0.2;
+        accentMat.emissiveIntensity = intensity;
+        labelMat.emissiveIntensity = intensity * 0.4;
+      } else {
+        // Static baseline
+        accentMat.emissiveIntensity = 0.3;
+        labelMat.emissiveIntensity = 0.15;
+      }
+    });
+  };
 
   // Position from definition
   machine.position.set(...def.position);

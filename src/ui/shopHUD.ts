@@ -41,7 +41,7 @@ export function mountShopHUD() {
       <div class="pull-item-name" id="pull-item-name"></div>
       <div class="pull-item-rarity" id="pull-item-rarity"></div>
       <div class="pull-item-flavor" id="pull-item-flavor"></div>
-      <div class="pull-dismiss">Press any key to continue</div>
+      <div class="pull-dismiss" id="pull-dismiss-text">Press any key/click to continue</div>
     </div>
 
     <div class="shop-token-overlay hidden" id="token-overlay">
@@ -153,6 +153,7 @@ export function showPullResult(
   rarity: string,
   flavor: string,
   accentColor: string,
+  onDismiss?: () => void
 ) {
   const el = document.getElementById('pull-result');
   const capsuleEl = document.getElementById('pull-capsule');
@@ -167,6 +168,18 @@ export function showPullResult(
     rarityEl.className = `pull-item-rarity rarity-${rarity}`;
     flavorEl.textContent = `"${flavor}"`;
     el.classList.remove('hidden');
+
+    if (onDismiss) {
+      const dismissHandler = () => {
+        el.removeEventListener('click', dismissHandler);
+        window.removeEventListener('keydown', dismissHandler);
+        onDismiss();
+      };
+      setTimeout(() => {
+        el.addEventListener('click', dismissHandler);
+        window.addEventListener('keydown', dismissHandler);
+      }, 300); // Small delay to prevent accidental instant dismissal
+    }
   }
 }
 

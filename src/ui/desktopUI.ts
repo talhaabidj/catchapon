@@ -6,6 +6,12 @@
  */
 
 import type { Game } from '../core/Game.js';
+import { loadGameState, saveGameState, createDefaultGameState } from '../core/Save.js';
+
+// If Howler is present in their node_modules, this binds global audio.
+// If not installed yet, this will error in Vite until user installs it, as per M14 reqs.
+// @ts-ignore - Ignore missing types if they haven't installed @types/howler yet
+import * as HowlerModule from 'howler';
 
 const DESKTOP_ID = 'desktop-ui';
 
@@ -87,11 +93,11 @@ export function mountDesktopUI(game: Game) {
         <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 2rem;">
           <label style="display: flex; justify-content: space-between; max-width: 400px;">
             <span>Master Volume</span>
-            <input type="range" min="0" max="100" value="80" disabled />
+            <input type="range" id="settings-volume" min="0" max="100" value="80" />
           </label>
           <label style="display: flex; justify-content: space-between; max-width: 400px;">
             <span>Mouse Invert Y</span>
-            <input type="checkbox" disabled />
+            <input type="checkbox" id="settings-invert" />
           </label>
           <label style="display: flex; justify-content: space-between; max-width: 400px;">
             <span>Graphics Quality</span>
@@ -136,12 +142,48 @@ export function mountDesktopUI(game: Game) {
 
   document.getElementById('btn-profile')?.addEventListener('click', () => openOverlay('overlay-profile'));
   document.getElementById('btn-collection')?.addEventListener('click', () => openOverlay('overlay-collection'));
-  document.getElementById('btn-settings')?.addEventListener('click', () => openOverlay('overlay-settings'));
+  document.getElementById('btn-settings')?.addEventListener('click', () => {
+    openOverlay('overlay-settings');
+    // Load current config into inputs
+    const state = loadGameState() || createDefaultGameState();
+    const volInput = document.getElementById('settings-volume') as HTMLInputElement;
+    const invInput = document.getElementById('settings-invert') as HTMLInputElement;
+    
+    if (volInput) volInput.value = String((state.settings.masterVolume ?? 0.8) * 100);
+    if (invInput) invInput.checked = state.settings.invertY ?? false;
+  });
   document.getElementById('btn-faq')?.addEventListener('click', () => openOverlay('overlay-faq'));
 
   btnClose.addEventListener('click', () => {
     overlays.style.display = 'none';
   });
+
+  // —— Wire Settings Persistence ——
+  const volInput = document.getElementById('settings-volume') as HTMLInputElement;
+  const invInput = document.getElementById('settings-invert') as HTMLInputElement;
+
+  if (volInput) {
+    volInput.addEventListener('change', (e) => {
+      const val = parseInt((e.target as HTMLInputElement).value, 10);
+      const state = loadGameState() || createDefaultGameState();
+      state.settings.masterVolume = val / 100;
+      saveGameState(state);
+      
+      // Update Howler Globally
+      if (HowlerModule && HowlerModule.Howler) {
+          HowlerModule.Howler.volume(state.settings.masterVolume);
+      }
+    });
+  }
+
+  if (invInput) {
+    invInput.addEventListener('change', (e) => {
+      const val = (e.target as HTMLInputElement).checked;
+      const state = loadGameState() || createDefaultGameState();
+      state.settings.invertY = val;
+      saveGameState(state);
+    });
+  }
 
   // —— Update clock ——
   updateClock();

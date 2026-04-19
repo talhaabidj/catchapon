@@ -92,6 +92,7 @@ export class ShopScene implements Scene {
   private progression: ProgressionSystem;
 
   // State
+  private machineGroups = new Map<string, THREE.Group>();
   private availableMachines: MachineDefinition[] = [];
   private moneyEarnedThisNight = 0;
   private itemsObtainedThisNight: string[] = [];
@@ -160,10 +161,11 @@ export class ShopScene implements Scene {
       if (st) stateMap.set(id, st);
     }
 
-    const { group, interactables } = buildShopFloor(
+    const { group, interactables, machineGroups } = buildShopFloor(
       this.availableMachines,
       stateMap,
     );
+    this.machineGroups = machineGroups;
     this.scene3d.add(group);
 
     // —— Spawn Task Targets (Floor Spots) ——
@@ -236,6 +238,7 @@ export class ShopScene implements Scene {
     document.getElementById('token-overlay-close')?.addEventListener('click', () => {
       hideTokenOverlay();
       this.controller.setEnabled(true);
+      this.game.canvas.requestPointerLock();
     });
 
     // —— Wire night continue button ——
@@ -259,12 +262,8 @@ export class ShopScene implements Scene {
 
     // —— Pull result displayed ——
     if (isPullResultVisible()) {
-      this.controller.setEnabled(false);
-      // Any key/click to dismiss
-      if (input.isInteractPressed() || input.isMenuPressed()) {
-        hidePullResult();
-        this.controller.setEnabled(true);
-      }
+      // The event listener inside shopHUD.ts handles the dismissal now.
+      // We just pause update processing while the reveal is open.
       this.game.renderer.render(this.scene3d, this.camera);
       return;
     }
@@ -303,6 +302,15 @@ export class ShopScene implements Scene {
         showToast('🌙 3:00 AM — The witching hour... rare items stir.', 5000);
       }
     }
+
+    // —— Machine Polish Animations (M15) ——
+    const timeNow = performance.now() * 0.001;
+    this.machineGroups.forEach((mGroup, id) => {
+      const state = this.maintenance.getState(id);
+      if (mGroup.userData['animate']) {
+        mGroup.userData['animate'](timeNow, state);
+      }
+    });
 
     // —— Movement ——
     if (!this.controller.isEnabled()) {
@@ -421,64 +429,86 @@ export class ShopScene implements Scene {
     // Check tokens
     if (!this.economy.spendPull()) return;
 
-    // Find machine definition
-    const machineDef = MACHINES.find((m) => m.id === machineId);
-    if (!machineDef) return;
-
-    // Get maintenance state
-    const machineState = this.maintenance.getState(machineId);
-
-    // Pull!
-    const result = this.capsule.pull(
-      machineDef,
-      machineState,
-      this.time.getCurrentHour(),
-    );
-
-    if (!result) return;
-
-    // Advance time
-    this.time.advance(PULL_TIME_COST);
-
-    // Duplicate detection
-    const isDuplicate = this.collection.isDuplicate(result.item.id);
-
-    // Add to collection (returns false if duplicate, but still track)
-    this.collection.addItem(result.item.id);
-    this.itemsObtainedThisNight.push(result.item.id);
-
-    // Show reveal
-    const accentColors: Record<string, string> = {
-      common: '#aaaaaa',
-      uncommon: '#44cc44',
-      rare: '#4488ff',
-      epic: '#cc44ff',
-      legendary: '#ffcc00',
-    };
-
-    const displayName = isDuplicate
-      ? `${result.item.name} (DUPLICATE)`
-      : result.item.name;
-
-    showPullResult(
-      displayName,
-      result.item.rarity,
-      result.item.flavorText,
-      accentColors[result.item.rarity] ?? '#7c6ef0',
-    );
-
-    // Screen shake — scales with rarity
-    const shakeMap: Record<string, number> = {
-      common: 0.01,
-      uncommon: 0.015,
-      rare: 0.025,
-      epic: 0.04,
-      legendary: 0.06,
-    };
-    this.triggerShake(shakeMap[result.item.rarity] ?? 0.01, 0.3);
-
+    // We disable controller immediately so player can't look away during the crank sequence
     this.controller.setEnabled(false);
-    this.updateHUD();
+
+    // Audio sequence for anticipation (M14)
+    // Here we trigger the Howler global sound for a gacha capsule crank...
+    // (Assuming sounds are placed globally or just use a placeholder toast/visual lag)
+    
+    // Fake crank anticipation UI: show "..." text on machine?
+    showShopPrompt(`Cranking...`);
+
+    setTimeout(() => {
+      hideShopPrompt();
+
+      // Find machine definition
+      const machineDef = MACHINES.find((m) => m.id === machineId);
+      if (!machineDef) return;
+
+      // Get maintenance state
+      const machineState = this.maintenance.getState(machineId);
+
+      // Pull!
+      const result = this.capsule.pull(
+        machineDef,
+        machineState,
+        this.time.getCurrentHour(),
+      );
+
+      if (!result) {
+        this.controller.setEnabled(true);
+        return;
+      }
+
+      // Advance time
+      this.time.advance(PULL_TIME_COST);
+
+      // Duplicate detection
+      const isDuplicate = this.collection.isDuplicate(result.item.id);
+
+      // Add to collection (returns false if duplicate, but still track)
+      this.collection.addItem(result.item.id);
+      this.itemsObtainedThisNight.push(result.item.id);
+
+      // Show reveal
+      const accentColors: Record<string, string> = {
+        common: '#aaaaaa',
+        uncommon: '#44cc44',
+        rare: '#4488ff',
+        epic: '#cc44ff',
+        legendary: '#ffcc00',
+      };
+
+      const displayName = isDuplicate
+        ? `${result.item.name} (DUPLICATE)`
+        : result.item.name;
+
+      showPullResult(
+        displayName,
+        result.item.rarity,
+        result.item.flavorText,
+        accentColors[result.item.rarity] ?? '#7c6ef0',
+        () => {
+          hidePullResult();
+          this.controller.setEnabled(true);
+          this.game.canvas.requestPointerLock();
+        }
+      );
+
+      // Screen shake — scales with rarity
+      const shakeMap: Record<string, number> = {
+        common: 0.01,
+        uncommon: 0.015,
+        rare: 0.025,
+        epic: 0.04,
+        legendary: 0.06,
+      };
+      this.triggerShake(shakeMap[result.item.rarity] ?? 0.01, 0.3);
+
+      this.updateHUD();
+    }, 1500);
+
   }
 
   private handleTokenStation() {
@@ -718,9 +748,42 @@ export class ShopScene implements Scene {
 
   private clampPosition() {
     const pos = this.camera.position;
-    pos.x = Math.max(-SHOP_HALF_W, Math.min(SHOP_HALF_W, pos.x));
-    pos.z = Math.max(-SHOP_HALF_D, Math.min(SHOP_HALF_D, pos.z));
+    const playerRadius = 0.5;
+
+    // Outer walls check
+    pos.x = Math.max(-SHOP_HALF_W + playerRadius, Math.min(SHOP_HALF_W - playerRadius, pos.x));
+    pos.z = Math.max(-SHOP_HALF_D + playerRadius, Math.min(SHOP_HALF_D - playerRadius, pos.z));
     pos.y = PLAYER_HEIGHT;
+
+    // Inner collision against capsule machines using simple AABB
+    // Machine width ~0.85, depth ~0.75
+    const mw = 0.85 / 2 + playerRadius;
+    const md = 0.75 / 2 + playerRadius;
+
+    for (const machine of this.availableMachines) {
+      const mx = machine.position[0];
+      const mz = machine.position[2];
+      // Machine might be rotated, but for simplicity we'll just check a slightly padded square AABB
+      // Since rotation in shop is typically multiples of PI/2
+      const isRotated = Math.abs(machine.rotation) % Math.PI > 0.01;
+      const boundX = isRotated ? md : mw;
+      const boundZ = isRotated ? mw : md;
+
+      const dx = pos.x - mx;
+      const dz = pos.z - mz;
+
+      if (Math.abs(dx) < boundX && Math.abs(dz) < boundZ) {
+        // Resolve collision by pushing out along the axis of shallowest penetration
+        const overlapX = boundX - Math.abs(dx);
+        const overlapZ = boundZ - Math.abs(dz);
+
+        if (overlapX < overlapZ) {
+          pos.x += Math.sign(dx) * overlapX;
+        } else {
+          pos.z += Math.sign(dz) * overlapZ;
+        }
+      }
+    }
   }
 
   private onResize = () => {

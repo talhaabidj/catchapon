@@ -4,20 +4,89 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Catchapon — Night Shift Gacha</title>
-    <meta
-      name="description"
-      content="Catchapon is an aesthetic neon webgl experience and cozy life sim. Act as a 3D capsule toy collector and mystery box unlocker in this virtual gacha pull simulator and night shift management simulator natively running in the browser."
-    />
-    <meta
-      name="keywords"
-      content="gacha, capsule toy, 3D browser game, cozy life sim, night shift management simulator, virtual gacha pull simulator, mystery box unlocker, aesthetic neon webgl experience, three.js, browser aesthetic game"
-    />
+    
+    <!-- Primary Meta Tags -->
+    <meta name="title" content="Catchapon — Night Shift Gacha Simulator" />
+    <meta name="description" content="Catchapon is an aesthetic neon webgl experience and cozy life sim. Act as a 3D capsule toy collector and mystery box unlocker in this virtual gacha pull simulator and night shift management simulator natively running in the browser." />
+    <meta name="keywords" content="gacha, capsule toy, 3D browser game, cozy life sim, night shift management simulator, virtual gacha pull simulator, mystery box unlocker, aesthetic neon webgl experience, three.js, browser aesthetic game" />
+    <meta name="author" content="Catchapon Dev" />
+    <meta name="theme-color" content="#7c6ef0" />
+    <meta name="robots" content="index, follow" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://catchapon.com/" />
+    <meta property="og:title" content="Catchapon — Night Shift Gacha Simulator" />
+    <meta property="og:description" content="Catchapon is an aesthetic neon webgl experience and cozy life sim. Act as a 3D capsule toy collector and mystery box unlocker in this virtual gacha pull simulator and night shift management simulator." />
+    <meta property="og:image" content="https://catchapon.com/thumbnail.jpg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://catchapon.com/" />
+    <meta property="twitter:title" content="Catchapon — Night Shift Gacha Simulator" />
+    <meta property="twitter:description" content="Catchapon is an aesthetic neon webgl experience and cozy life sim. Act as a 3D capsule toy collector and mystery box unlocker in this virtual gacha pull simulator and night shift management simulator." />
+    <meta property="twitter:image" content="https://catchapon.com/thumbnail.jpg" />
+
+    <!-- App / Canonical -->
+    <link rel="canonical" href="https://catchapon.com/" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    
+    <!-- GEO & AEO: Structured JSON-LD Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "VideoGame",
+          "name": "Catchapon",
+          "description": "A premium browser aesthetic game offering a blend of a virtual gacha pull simulator and a cozy life sim natively built with Three.js and Vite.",
+          "genre": ["Simulation", "Management", "Strategy"],
+          "gamePlatform": "Web Browser",
+          "applicationCategory": "Game",
+          "operatingSystem": "Any",
+          "url": "https://catchapon.com",
+          "image": "https://catchapon.com/thumbnail.jpg",
+          "playMode": "SinglePlayer",
+          "author": {
+            "@type": "Organization",
+            "name": "Catchapon Studio"
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [{
+            "@type": "Question",
+            "name": "What is my objective in this aesthetic neon webgl experience?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Your job requires you to tackle the fast-paced challenges of a night shift management simulator. You will clean up dirty floor spots, rewire disconnected plugs, fix mechanical jams, and wipe the glass on broken capsule machines to keep the shop running perfectly."
+            }
+          }, {
+            "@type": "Question",
+            "name": "How do I become a 3D capsule toy collector?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "As you complete your maintenance tasks, you'll earn money efficiently. Spend this money at the Token Exchange machine to grab golden tokens. Insert your tokens into fully functional gacha machines to act as a mystery box unlocker, allowing you to pull and collect rare digital capsule toys!"
+            }
+          }]
+        }
+      ]
+    }
+    </script>
+
+    <!-- Resource Hints & Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
+    
+    <!-- Preload Critical Typography to prevent FOIT -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+    
+    <!-- Async Stylesheet Loading -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'" />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+    </noscript>
+    
     <link rel="stylesheet" href="/src/styles/global.css" />
   </head>
   <body>

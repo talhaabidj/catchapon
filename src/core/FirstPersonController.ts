@@ -20,6 +20,7 @@ import {
   PITCH_MAX,
   PLAYER_HEIGHT,
 } from './Config.js';
+import { loadGameState } from './Save.js';
 
 export class FirstPersonController {
   private camera: THREE.PerspectiveCamera | null = null;
@@ -41,6 +42,13 @@ export class FirstPersonController {
   constructor(domElement: HTMLElement, input: Input) {
     this.domElement = domElement;
     this.input = input;
+
+    // Load user preferences
+    const state = loadGameState();
+    if (state?.settings) {
+      this.invertY = state.settings.invertY;
+      this.sensitivity = state.settings.mouseSensitivity;
+    }
 
     // Pointer lock listeners
     this.domElement.addEventListener('click', this.requestPointerLock);
