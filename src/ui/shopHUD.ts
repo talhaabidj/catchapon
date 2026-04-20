@@ -34,7 +34,7 @@ export function mountShopHUD() {
     </div>
 
     <div class="interact-prompt" id="shop-interact-prompt">
-      <kbd>E</kbd> <span id="shop-interact-text">Interact</span>
+      <kbd id="shop-interact-key">E</kbd> <span id="shop-interact-text">Interact</span>
     </div>
 
     <div class="shop-pull-result hidden" id="pull-result">
@@ -137,11 +137,13 @@ export function renderTaskList(
 
 // —— Interact prompt ——
 
-export function showShopPrompt(text: string) {
+export function showShopPrompt(text: string, keyLabel = 'E') {
   const el = document.getElementById('shop-interact-prompt');
   const txt = document.getElementById('shop-interact-text');
+  const key = document.getElementById('shop-interact-key');
   if (el && txt) {
     txt.textContent = text;
+    if (key) key.textContent = keyLabel;
     el.classList.add('visible');
   }
   document.getElementById('shop-crosshair')?.classList.add('interact');

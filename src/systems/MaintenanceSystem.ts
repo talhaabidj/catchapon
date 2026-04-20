@@ -24,22 +24,27 @@ export class MaintenanceSystem {
       if (!machine) continue;
 
       // Higher difficulty = more problems
-      const dirtyChance = 0.3 * difficultyModifier;
-      const lowStockChance = 0.2 * difficultyModifier;
+      const dirtyChance = 0.22 * difficultyModifier;
+      const lowStockChance = 0.16 * difficultyModifier;
       const jamChance = machine.quirks.includes('jams-often')
-        ? 0.4 * difficultyModifier
-        : 0.15 * difficultyModifier;
-      const unpoweredChance = 0.1 * difficultyModifier;
+        ? 0.24 * difficultyModifier
+        : 0.08 * difficultyModifier;
+      const unpoweredChance = 0.06 * difficultyModifier;
 
-      this.states.set(id, {
+      const state: MachineState = {
         machineId: id,
         cleanliness: rng() < dirtyChance ? 'dirty' : 'clean',
         stockLevel: rng() < lowStockChance
-          ? (rng() < 0.3 ? 'empty' : 'low')
+          ? (rng() < 0.18 ? 'empty' : 'low')
           : 'ok',
         isJammed: rng() < jamChance,
         isPowered: rng() >= unpoweredChance,
-      });
+      };
+
+      // Avoid stacked blocking issues (e.g. jammed + unpowered + empty) on spawn.
+      this.normalizeBlockingIssues(state, rng);
+
+      this.states.set(id, state);
     }
   }
 
@@ -115,5 +120,19 @@ export class MaintenanceSystem {
   /** Reset */
   reset() {
     this.states.clear();
+  }
+
+  private normalizeBlockingIssues(state: MachineState, rng: () => number) {
+    const blockers: Array<'power' | 'jam' | 'stock'> = [];
+    if (!state.isPowered) blockers.push('power');
+    if (state.isJammed) blockers.push('jam');
+    if (state.stockLevel === 'empty') blockers.push('stock');
+
+    if (blockers.length <= 1) return;
+
+    const keep = blockers[Math.floor(rng() * blockers.length)]!;
+    if (keep !== 'power') state.isPowered = true;
+    if (keep !== 'jam') state.isJammed = false;
+    if (keep !== 'stock' && state.stockLevel === 'empty') state.stockLevel = 'low';
   }
 }

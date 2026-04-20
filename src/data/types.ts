@@ -90,6 +90,23 @@ export interface ActiveTask {
 }
 
 // ————————————————————————————————
+// Interaction Metadata
+// ————————————————————————————————
+
+export type InteractType =
+  | 'unknown'
+  | 'machine'
+  | 'floor-spot'
+  | 'storage-crate'
+  | 'token-station'
+  | 'shop-exit'
+  | 'wondertrade'
+  | 'secret'
+  | 'pc'
+  | 'collection'
+  | 'door';
+
+// ————————————————————————————————
 // Progression
 // ————————————————————————————————
 

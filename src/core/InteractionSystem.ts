@@ -8,10 +8,12 @@
  */
 
 import * as THREE from 'three';
+import type { InteractType } from '../data/types.js';
+import { getInteractPrompt, getInteractType, isInteractable } from './InteractionTags.js';
 
 export interface InteractionTarget {
   object: THREE.Object3D;
-  type: string;
+  type: InteractType;
   prompt: string;
   distance: number;
 }
@@ -41,6 +43,7 @@ export class InteractionSystem {
     this.meshToInteractable.clear();
 
     for (const obj of this.interactables) {
+      if (!isInteractable(obj)) continue;
       if (obj.visible === false) continue; // Skip deeply hidden objects initially
       obj.traverse((child) => {
         if (child instanceof THREE.Mesh) {
@@ -83,8 +86,8 @@ export class InteractionSystem {
       if (parent) {
         this.lastTarget = {
           object: parent,
-          type: (parent.userData['interactType'] as string) ?? 'unknown',
-          prompt: (parent.userData['prompt'] as string) ?? 'Interact',
+          type: getInteractType(parent),
+          prompt: getInteractPrompt(parent),
           distance: hit.distance,
         };
         return this.lastTarget;

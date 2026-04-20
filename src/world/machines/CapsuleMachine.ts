@@ -8,11 +8,22 @@
 
 import * as THREE from 'three';
 import type { MachineDefinition, MachineState } from '../../data/types.js';
+import { tagInteractable } from '../../core/InteractionTags.js';
+import {
+  FULL_STOCK_CAPSULE_COUNT,
+  LOW_STOCK_CAPSULE_COUNT,
+  animateMachineCapsules,
+  setMachineCapsules,
+  restockMachineCapsules,
+} from './CapsuleMachineCapsules.js';
+import {
+  syncMachineMaintenanceVisuals,
+  triggerMachineCleanPulse,
+  triggerMachinePowerPulse,
+  type MachineVisualRefs,
+} from './CapsuleMachineVisuals.js';
 
-interface AnimMats {
-  accentMat: THREE.MeshStandardMaterial;
-  labelMat: THREE.MeshStandardMaterial;
-}
+export { restockMachineCapsules, triggerMachineCleanPulse, triggerMachinePowerPulse };
 
 /** Accent colors by machine ID prefix */
 const ACCENT_COLORS: Record<string, number> = {
@@ -32,16 +43,19 @@ export function createCapsuleMachine(
 ): THREE.Group {
   const machine = new THREE.Group();
   machine.name = `machine-${def.id}`;
-  machine.userData['interactable'] = true;
-  machine.userData['interactType'] = 'machine';
-  machine.userData['machineId'] = def.id;
-  machine.userData['prompt'] = def.name;
+  tagInteractable(machine, {
+    type: 'machine',
+    prompt: def.name,
+    machineId: def.id,
+  });
 
   const accentColor = ACCENT_COLORS[def.id] ?? 0x7c6ef0;
   const isDirty = state?.cleanliness === 'dirty';
   const isJammed = state?.isJammed ?? false;
   const isPowered = state?.isPowered ?? true;
-  const isLowStock = state?.stockLevel === 'low' || state?.stockLevel === 'empty';
+  const stockLevel = state?.stockLevel ?? 'ok';
+  const isOutOfStock = stockLevel === 'empty';
+  const isLowStock = stockLevel === 'low';
 
   const buildTier = (yOffset: number) => {
     // Shared Materials
@@ -146,58 +160,10 @@ export function createCapsuleMachine(
     internalDispenser.position.set(0, 1.05 + yOffset, 0);
     machine.add(internalDispenser);
 
-    // —— Chaos Capsules! (Chaotic Instanced Pile inside the tank) ——
-    interface CapsuleData {
-      pos: THREE.Vector3;
-      rot: THREE.Euler;
-      vel: THREE.Vector3;
-    }
-    const capsulesData: CapsuleData[] = [];
-    if (!isLowStock) {
-      const capsuleCount = 45; // Huge pile!
-      const capsuleGeo = new THREE.SphereGeometry(0.045, 8, 8);
-      const capsuleMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        roughness: 0.2,
-        metalness: 0.1,
-      });
-      const instancedCapsules = new THREE.InstancedMesh(capsuleGeo, capsuleMat, capsuleCount);
-      
-      const dummy = new THREE.Object3D();
-      const color = new THREE.Color();
-      
-      // We will lazily scatter them in a 3D grid layout slightly randomized
-      let i = 0;
-      for (let yLevel = 0; yLevel < 3; yLevel++) {
-        for (let xLevel = 0; xLevel < 5; xLevel++) {
-          for (let zLevel = 0; zLevel < 3; zLevel++) {
-            if (i >= capsuleCount) break;
-
-            const rx = -0.3 + (xLevel * 0.15) + (Math.random() * 0.05 - 0.025);
-            const rz = -0.2 + (zLevel * 0.2) + (Math.random() * 0.05 - 0.025);
-            // Drop them from the top to let gravity settle them
-            const ry = 1.4 + (yLevel * 0.11) + (Math.random() * 0.04) + yOffset;
-            
-            const pos = new THREE.Vector3(rx, ry, rz);
-            const rot = new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-            const vel = new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2);
-            capsulesData.push({ pos, rot, vel });
-            
-            dummy.position.copy(pos);
-            dummy.rotation.copy(rot);
-            dummy.updateMatrix();
-            instancedCapsules.setMatrixAt(i, dummy.matrix);
-            
-            color.setHSL(Math.random(), 0.8, 0.5);
-            instancedCapsules.setColorAt(i, color);
-            i++;
-          }
-        }
-      }
-      instancedCapsules.instanceMatrix.needsUpdate = true;
-      if (instancedCapsules.instanceColor) instancedCapsules.instanceColor.needsUpdate = true;
-      machine.userData['capsules'] = { mesh: instancedCapsules, data: capsulesData };
-      machine.add(instancedCapsules);
+    // Keep capsules visible unless machine is fully out of stock.
+    if (!isOutOfStock) {
+      const initialCapsules = isLowStock ? LOW_STOCK_CAPSULE_COUNT : FULL_STOCK_CAPSULE_COUNT;
+      setMachineCapsules(machine, false, initialCapsules);
     }
 
     // —— Header / Marquee Sign (The Cap) ——
@@ -231,19 +197,25 @@ export function createCapsuleMachine(
     led.position.set(0.35, 1.725 + yOffset, 0.38);
     machine.add(led);
 
-    if (isJammed) {
-      const jamMat = new THREE.MeshStandardMaterial({
-        color: 0xff8800, emissive: 0xff6600, emissiveIntensity: 0.8,
-      });
-      const jamLight = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.02, 8), jamMat);
-      jamLight.rotation.x = Math.PI / 2;
-      jamLight.position.set(-0.35, 1.725 + yOffset, 0.38);
-      machine.add(jamLight);
-    }
+    const jamMat = new THREE.MeshStandardMaterial({
+      color: 0xff8800, emissive: 0xff6600, emissiveIntensity: 0.8,
+    });
+    const jamLight = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.02, 8), jamMat);
+    jamLight.rotation.x = Math.PI / 2;
+    jamLight.position.set(-0.35, 1.725 + yOffset, 0.38);
+    jamLight.visible = isJammed;
+    machine.add(jamLight);
 
     // Add mats to animate references
     if (!machine.userData['animMats']) machine.userData['animMats'] = [];
     machine.userData['animMats'].push({ accentMat: pillarMat, labelMat: labelMat });
+
+    if (!machine.userData['visualRefs']) machine.userData['visualRefs'] = [];
+    (machine.userData['visualRefs'] as MachineVisualRefs[]).push({
+      glassMat,
+      ledMat,
+      jamLight,
+    });
   };
 
   // Build single tier machine
@@ -251,88 +223,8 @@ export function createCapsuleMachine(
 
   // Expose an animation callback for M15 Visual Polish
   machine.userData['animate'] = (time: number, s?: MachineState) => {
-    const isClean = s?.cleanliness === 'clean';
-    const broken = s?.isJammed || !(s?.isPowered);
-
-    // —— Capsule Physics (Popcorn style) ——
-    let dt = time - (machine.userData['lastTime'] || time);
-    machine.userData['lastTime'] = time;
-    if (dt > 0.1) dt = 0.1; // clamp to prevent clipping on huge spikes
-    
-    // In ShopScene, time could be 0 init, so guard dt
-    if (dt > 0 && machine.userData['capsules']) {
-      const { mesh, data } = machine.userData['capsules'];
-      const dummy = new THREE.Object3D();
-      let needsMatrixUpdate = false;
-      
-      for (let i = 0; i < data.length; i++) {
-        const d = data[i];
-        
-        // Gravity
-        d.vel.y -= 1.8 * dt; // gravity
-
-        // Random subtle visual popcorn bounce so they look alive!
-        if (Math.random() < 0.005) {
-            d.vel.y += 0.3 + Math.random() * 0.3;
-            d.vel.x += (Math.random() - 0.5) * 0.4;
-            d.vel.z += (Math.random() - 0.5) * 0.4;
-        }
-
-        d.pos.addScaledVector(d.vel, dt);
-
-        // Floor collision (floor is ~1.06 + radius = 1.105)
-        if (d.pos.y < 1.105) {
-            d.pos.y = 1.105;
-            d.vel.y *= -0.4; // bounce
-            d.vel.x *= 0.9;  // friction
-            d.vel.z *= 0.9;
-        }
-
-        // Wall collisions
-        if (d.pos.x < -0.37) { d.pos.x = -0.37; d.vel.x *= -0.6; }
-        if (d.pos.x > 0.37) { d.pos.x = 0.37; d.vel.x *= -0.6; }
-        if (d.pos.z < -0.32) { d.pos.z = -0.32; d.vel.z *= -0.6; }
-        if (d.pos.z > 0.32) { d.pos.z = 0.32; d.vel.z *= -0.6; }
-
-        // Only update matrices if they are still moving meaningfully to save render time,
-        // but since we add random pops we just update them if velocity is non-negligible
-        if (d.vel.lengthSq() > 0.001) {
-          // Add some spin
-          d.rot.x += d.vel.z * dt * 5;
-          d.rot.z -= d.vel.x * dt * 5;
-          d.rot.y += d.vel.x * dt * 2;
-          
-          dummy.position.copy(d.pos);
-          dummy.rotation.copy(d.rot);
-          dummy.updateMatrix();
-          mesh.setMatrixAt(i, dummy.matrix);
-          needsMatrixUpdate = true;
-        }
-      }
-      
-      if (needsMatrixUpdate) {
-        mesh.instanceMatrix.needsUpdate = true;
-      }
-    }
-
-    const mats = machine.userData['animMats'] as AnimMats[];
-    mats.forEach(({ accentMat, labelMat }) => {
-      if (broken) {
-        // Flicker chaotically
-        const intensity = Math.random() > 0.8 ? 0.8 : 0.1;
-        accentMat.emissiveIntensity = intensity;
-        labelMat.emissiveIntensity = intensity * 0.5;
-      } else if (isClean) {
-        // Pulse warmly
-        const intensity = 0.5 + Math.sin(time * 3) * 0.2;
-        accentMat.emissiveIntensity = intensity;
-        labelMat.emissiveIntensity = intensity * 0.4;
-      } else {
-        // Static baseline
-        accentMat.emissiveIntensity = 0.3;
-        labelMat.emissiveIntensity = 0.15;
-      }
-    });
+    const dt = animateMachineCapsules(machine, time);
+    syncMachineMaintenanceVisuals(machine, time, dt, s);
   };
 
   // Position from definition

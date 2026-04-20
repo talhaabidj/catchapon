@@ -1,7 +1,7 @@
 {
   "name": "catchapon",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Catchapon — A cozy first-person Japanese gacha department store game",
   "scripts": {

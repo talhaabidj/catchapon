@@ -25,6 +25,13 @@ import { getItemById } from '../data/items.js';
 import { CollectionSystem } from '../systems/CollectionSystem.js';
 import { EconomySystem } from '../systems/EconomySystem.js';
 import { ProgressionSystem } from '../systems/ProgressionSystem.js';
+import { PauseSceneController } from './shared/PauseSceneController.js';
+import { clampBedroomPosition } from './bedroom/BedroomCollision.js';
+import {
+  createBlackFadeOverlay,
+  fadeToBlack,
+  playDesktopReturnTransition,
+} from './bedroom/BedroomTransitions.js';
 import {
   mountBedroomUI,
   unmountBedroomUI,
@@ -41,14 +48,9 @@ import {
 import {
   mountPauseUI,
   unmountPauseUI,
-  showPauseMenu,
   hidePauseMenu,
   isPauseMenuVisible,
 } from '../ui/pauseUI.js';
-
-// Room bounds for collision
-const ROOM_HALF_W = 2.3; // slightly inside 2.5 walls
-const ROOM_HALF_D = 1.8; // slightly inside 2.0 walls
 
 export class BedroomScene implements Scene {
   private game: Game;
@@ -56,15 +58,12 @@ export class BedroomScene implements Scene {
   private camera: THREE.PerspectiveCamera;
   private controller: FirstPersonController;
   private interaction: InteractionSystem;
+  private pauseController: PauseSceneController;
 
   // Persisted state
   private gameState: GameState;
   private colliders: BedroomCollider[] = [];
   private windowVoidAnimator: ((timeSeconds: number) => void) | null = null;
-  private resumePointerLockPending = false;
-  private resumePointerLockAttempts = 0;
-  private resumePointerLockAssistActive = false;
-  private pauseResumeRequested = false;
   private awaitingBedroomStartClick = false;
   private isNightShiftStarting = false;
   private isReturningToDesktop = false;
@@ -88,6 +87,14 @@ export class BedroomScene implements Scene {
       this.game.canvas,
       this.game.input,
     );
+    this.pauseController = new PauseSceneController({
+      input: this.game.input,
+      canvas: this.game.canvas,
+      controller: this.controller,
+      setPaused: (paused) => {
+        this.game.isPaused = paused;
+      },
+    });
     this.interaction = new InteractionSystem();
 
     // Load game state: use passed-in (from shop return) or load from save
@@ -162,20 +169,13 @@ export class BedroomScene implements Scene {
 
     // —— Pause menu handling ——
     if (isPauseMenuVisible()) {
-      if (this.pauseResumeRequested) {
-        this.tryResumePointerLock();
-        if (document.pointerLockElement === this.game.canvas) {
-          this.finishPauseResume();
-        }
-      } else if (this.controller.isEnabled()) {
-        this.controller.setEnabled(false);
-      }
+      this.pauseController.handlePausedFrame();
 
       this.game.renderer.render(this.scene3d, this.camera);
       return;
     }
 
-    this.tryResumePointerLock();
+    this.pauseController.tryResumePointerLock();
 
     // —— Overlay handling ——
     if (isAnyOverlayOpen()) {
@@ -233,7 +233,7 @@ export class BedroomScene implements Scene {
     this.controller.update(dt);
 
     // —— Simple room bounds collision ——
-    this.clampPosition();
+    clampBedroomPosition(this.camera.position, this.colliders);
 
     // —— Interaction detection ——
     const target = this.interaction.check(this.camera);
@@ -275,11 +275,10 @@ export class BedroomScene implements Scene {
 
     this.colliders = [];
     this.windowVoidAnimator = null;
-    this.stopResumePointerLockAssist();
+    this.pauseController.dispose();
     this.bedroomStartOverlayEl?.remove();
     this.bedroomStartOverlayEl = null;
     this.awaitingBedroomStartClick = false;
-    this.pauseResumeRequested = false;
     this.isNightShiftStarting = false;
     this.isReturningToDesktop = false;
   }
@@ -312,8 +311,7 @@ export class BedroomScene implements Scene {
     this.controller.setEnabled(false);
     hideInteractPrompt();
 
-    this.resumePointerLockPending = false;
-    this.stopResumePointerLockAssist();
+    this.pauseController.cancelResumeFlow();
     if (document.pointerLockElement === this.game.canvas) {
       document.exitPointerLock();
     }
@@ -379,23 +377,8 @@ export class BedroomScene implements Scene {
   }
 
   private async beginNightShiftTransition() {
-
-    // Quick fade out
-    const fade = document.createElement('div');
-    fade.style.cssText = `
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: #000; z-index: 50; opacity: 0;
-      transition: opacity 0.6s ease;
-    `;
-    document.body.appendChild(fade);
-
-    // Trigger fade
-    requestAnimationFrame(() => {
-      fade.style.opacity = '1';
-    });
-
-    // Wait for fade, then transition
-    await new Promise((r) => setTimeout(r, 700));
+    const fade = createBlackFadeOverlay();
+    await fadeToBlack(fade, 700);
 
     // Create systems from save state
     const economy = new EconomySystem(this.gameState.money, this.gameState.tokens);
@@ -424,11 +407,10 @@ export class BedroomScene implements Scene {
     if (this.isReturningToDesktop) return;
     this.isReturningToDesktop = true;
 
-    const transitionOverlay = await this.playDesktopReturnTransition();
+    const transitionOverlay = await playDesktopReturnTransition();
 
     this.controller.setEnabled(false);
-    this.resumePointerLockPending = false;
-    this.stopResumePointerLockAssist();
+    this.pauseController.cancelResumeFlow();
     if (document.pointerLockElement === this.game.canvas) {
       document.exitPointerLock();
     }
@@ -436,7 +418,6 @@ export class BedroomScene implements Scene {
     this.awaitingBedroomStartClick = false;
     this.bedroomStartOverlayEl?.remove();
     this.bedroomStartOverlayEl = null;
-    this.pauseResumeRequested = false;
 
     hidePCOverlay();
     hideCollectionOverlay();
@@ -453,145 +434,11 @@ export class BedroomScene implements Scene {
     }, 180);
   }
 
-  private async playDesktopReturnTransition(): Promise<HTMLDivElement> {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-      position: fixed;
-      inset: 0;
-      z-index: 1200;
-      pointer-events: none;
-      opacity: 0;
-      background: rgba(8, 10, 16, 0);
-      backdrop-filter: blur(0px) saturate(1);
-      transition: opacity 0.2s ease, background 0.28s ease, backdrop-filter 0.28s ease;
-    `;
-    document.body.appendChild(overlay);
-
-    requestAnimationFrame(() => {
-      overlay.style.opacity = '1';
-      overlay.style.background = 'rgba(8, 10, 16, 0.45)';
-      overlay.style.backdropFilter = 'blur(6px) saturate(0.82)';
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 220));
-
-    overlay.style.background = '#000000';
-    overlay.style.backdropFilter = 'blur(10px) saturate(0.72)';
-
-    await new Promise((resolve) => setTimeout(resolve, 260));
-    return overlay;
-  }
-
   // —— Simple AABB room collision ——
 
   private openPauseMenu() {
     if (isPauseMenuVisible()) return;
-
-    this.game.isPaused = true;
-    this.pauseResumeRequested = false;
-    this.resumePointerLockPending = false;
-    this.resumePointerLockAttempts = 0;
-    this.stopResumePointerLockAssist();
-    this.controller.setEnabled(false);
-    showPauseMenu(
-      () => {
-        this.resumeFromPauseMenu();
-      },
-      { requireEscapeRelease: this.game.input.isKeyDown('Escape') },
-    );
-  }
-
-  private resumeFromPauseMenu() {
-    if (this.pauseResumeRequested) return;
-
-    this.pauseResumeRequested = true;
-    this.resumePointerLockPending = true;
-    this.resumePointerLockAttempts = 0;
-    this.startResumePointerLockAssist();
-    this.tryResumePointerLock(true);
-  }
-
-  private finishPauseResume() {
-    hidePauseMenu();
-    this.game.isPaused = false;
-    this.pauseResumeRequested = false;
-    this.resumePointerLockPending = false;
-    this.stopResumePointerLockAssist();
-    this.controller.setEnabled(true);
-  }
-
-  private tryResumePointerLock(allowWhileEscDown = false) {
-    if (!this.resumePointerLockPending) return;
-
-    if (document.pointerLockElement === this.game.canvas) {
-      this.resumePointerLockPending = false;
-      this.stopResumePointerLockAssist();
-      return;
-    }
-
-    // On non-gesture retries, wait until ESC is released.
-    if (!allowWhileEscDown && this.game.input.isKeyDown('Escape')) return;
-
-    if (this.resumePointerLockAttempts >= 90) {
-      this.resumePointerLockPending = false;
-      this.stopResumePointerLockAssist();
-      return;
-    }
-
-    this.resumePointerLockAttempts += 1;
-    this.game.canvas.requestPointerLock();
-  }
-
-  private startResumePointerLockAssist() {
-    if (this.resumePointerLockAssistActive) return;
-    document.addEventListener('pointerdown', this.onResumePointerDownCapture, true);
-    this.resumePointerLockAssistActive = true;
-  }
-
-  private stopResumePointerLockAssist() {
-    if (!this.resumePointerLockAssistActive) return;
-    document.removeEventListener('pointerdown', this.onResumePointerDownCapture, true);
-    this.resumePointerLockAssistActive = false;
-  }
-
-  private onResumePointerDownCapture = () => {
-    if (!this.resumePointerLockPending) {
-      this.stopResumePointerLockAssist();
-      return;
-    }
-
-    this.tryResumePointerLock(true);
-  };
-
-  private clampPosition() {
-    const pos = this.camera.position;
-    const playerRadius = 0.28;
-
-    pos.x = Math.max(-ROOM_HALF_W + playerRadius, Math.min(ROOM_HALF_W - playerRadius, pos.x));
-    pos.z = Math.max(-ROOM_HALF_D + playerRadius, Math.min(ROOM_HALF_D - playerRadius, pos.z));
-
-    // Prop collisions (desk/chair/bed/shelf/cupboard)
-    for (const collider of this.colliders) {
-      const boundX = collider.halfW + playerRadius;
-      const boundZ = collider.halfD + playerRadius;
-      const dx = pos.x - collider.x;
-      const dz = pos.z - collider.z;
-
-      if (Math.abs(dx) < boundX && Math.abs(dz) < boundZ) {
-        const overlapX = boundX - Math.abs(dx);
-        const overlapZ = boundZ - Math.abs(dz);
-
-        if (overlapX < overlapZ) {
-          const direction = Math.sign(dx) || 1;
-          pos.x += direction * overlapX;
-        } else {
-          const direction = Math.sign(dz) || 1;
-          pos.z += direction * overlapZ;
-        }
-      }
-    }
-
-    pos.y = PLAYER_HEIGHT; // keep on ground
+    this.pauseController.openPauseMenu();
   }
 
   private onResize = () => {

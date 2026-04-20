@@ -72,6 +72,13 @@ describe('Input', () => {
     expect(input.isInteractPressed()).toBe(true);
   });
 
+  it('detects restock press (KeyR) as just-pressed', () => {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyR' }),
+    );
+    expect(input.isRestockPressed()).toBe(true);
+  });
+
   it('clears just-pressed state after endFrame', () => {
     window.dispatchEvent(
       new KeyboardEvent('keydown', { code: 'KeyE' }),

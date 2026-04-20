@@ -5,13 +5,15 @@
  */
 
 import * as THREE from 'three';
+import { tagInteractable } from '../../core/InteractionTags.js';
 
 export function createDoor(): THREE.Group {
   const door = new THREE.Group();
   door.name = 'door';
-  door.userData['interactable'] = true;
-  door.userData['interactType'] = 'door';
-  door.userData['prompt'] = 'Start Night Shift';
+  tagInteractable(door, {
+    type: 'door',
+    prompt: 'Start Night Shift',
+  });
 
   const frameMat = new THREE.MeshStandardMaterial({
     color: 0x4a3728,

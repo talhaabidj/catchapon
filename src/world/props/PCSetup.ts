@@ -6,13 +6,15 @@
  */
 
 import * as THREE from 'three';
+import { tagInteractable } from '../../core/InteractionTags.js';
 
 export function createPCSetup(): THREE.Group {
   const pc = new THREE.Group();
   pc.name = 'pc-setup';
-  pc.userData['interactable'] = true;
-  pc.userData['interactType'] = 'pc';
-  pc.userData['prompt'] = 'Return To Start Screen';
+  tagInteractable(pc, {
+    type: 'pc',
+    prompt: 'Return To Start Screen',
+  });
 
   const darkMat = new THREE.MeshStandardMaterial({
     color: 0x111115,

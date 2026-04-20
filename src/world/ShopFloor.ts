@@ -9,12 +9,20 @@
 
 import * as THREE from 'three';
 import type { MachineDefinition, MachineState } from '../data/types.js';
+import { tagInteractable } from '../core/InteractionTags.js';
 import { createCapsuleMachine } from './machines/CapsuleMachine.js';
+import { buildShopSecrets } from './shop/ShopSecrets.js';
+import { buildStorageCrate } from './shop/ShopStorageCrate.js';
+import { buildTokenStation } from './shop/ShopTokenStation.js';
+import type { ShopCollider } from './shop/types.js';
+
+export type { ShopCollider } from './shop/types.js';
 
 export interface ShopLayout {
   group: THREE.Group;
   machineGroups: Map<string, THREE.Group>;
   interactables: THREE.Object3D[];
+  colliders: ShopCollider[];
 }
 
 const SHOP_WIDTH = 14;
@@ -32,6 +40,7 @@ export function buildShopFloor(
 
   const machineGroups = new Map<string, THREE.Group>();
   const interactables: THREE.Object3D[] = [];
+  const colliders: ShopCollider[] = [];
 
   // ————————————————————————————————
   // Room shell
@@ -136,12 +145,27 @@ export function buildShopFloor(
 
     // Wondertrade gets a special interaction type
     if (def.id === 'machine-wondertrade') {
-      machineGroup.userData['interactType'] = 'wondertrade';
+      tagInteractable(machineGroup, {
+        type: 'wondertrade',
+        prompt: def.name,
+        machineId: def.id,
+      });
     }
 
     group.add(machineGroup);
     machineGroups.set(def.id, machineGroup);
     interactables.push(machineGroup);
+
+    const rotated = Math.abs(def.rotation) % Math.PI > 0.01;
+    const machineHalfW = 0.48;
+    const machineHalfD = 0.42;
+    colliders.push({
+      name: `machine-${def.id}`,
+      x: def.position[0],
+      z: def.position[2],
+      halfW: rotated ? machineHalfD : machineHalfW,
+      halfD: rotated ? machineHalfW : machineHalfD,
+    });
   }
 
   // ————————————————————————————————
@@ -158,6 +182,7 @@ export function buildShopFloor(
   );
   counter.position.set(-5, 0.5, -4.5);
   group.add(counter);
+  colliders.push({ name: 'counter', x: -5, z: -4.5, halfW: 1.25, halfD: 0.3 });
 
   // Register on counter
   const registerMat = new THREE.MeshStandardMaterial({
@@ -175,78 +200,29 @@ export function buildShopFloor(
   // ————————————————————————————————
   // Storage crate (back-right, for restock tasks)
   // ————————————————————————————————
-
-  const crateMat = new THREE.MeshStandardMaterial({
-    color: 0x4a3d2e,
-    roughness: 0.9,
-  });
-  const crate = new THREE.Mesh(
-    new THREE.BoxGeometry(0.8, 0.6, 0.6),
-    crateMat,
-  );
-  crate.position.set(5.5, 0.3, -4.5);
-  group.add(crate);
-
-  // Capsules spilling from crate
-  for (let i = 0; i < 5; i++) {
-    const spill = new THREE.Mesh(
-      new THREE.SphereGeometry(0.04, 6, 4),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color().setHSL(i * 0.2, 0.6, 0.5),
-        roughness: 0.5,
-      }),
-    );
-    spill.position.set(
-      5.3 + Math.random() * 0.5,
-      0.04,
-      -4.3 + Math.random() * 0.3,
-    );
-    group.add(spill);
-  }
+  const storageCrate = buildStorageCrate();
+  group.add(storageCrate.group);
+  storageCrate.spillCapsules.forEach((spill) => group.add(spill));
+  interactables.push(storageCrate.interactable);
+  colliders.push(storageCrate.collider);
 
   // ————————————————————————————————
   // Token purchase station (near entrance)
   // ————————————————————————————————
-  const stationGroup = new THREE.Group();
-  stationGroup.name = 'token-station';
-  stationGroup.userData['interactable'] = true;
-  stationGroup.userData['interactType'] = 'token-station';
-  stationGroup.userData['prompt'] = 'Buy Tokens';
-
-  const stationBody = new THREE.Mesh(
-    new THREE.BoxGeometry(0.6, 1.2, 0.4),
-    new THREE.MeshStandardMaterial({
-      color: 0x2a2a38,
-      roughness: 0.5,
-      metalness: 0.4,
-    }),
-  );
-  stationBody.position.set(0, 0.6, 0);
-  stationGroup.add(stationBody);
-
-  const stationScreen = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.4, 0.3),
-    new THREE.MeshStandardMaterial({
-      color: 0x1a1a2e,
-      emissive: 0x7c6ef0,
-      emissiveIntensity: 0.2,
-    }),
-  );
-  stationScreen.position.set(0, 0.9, 0.201);
-  stationGroup.add(stationScreen);
-
-  stationGroup.position.set(5.5, 0, 3);
-  group.add(stationGroup);
-  interactables.push(stationGroup);
+  const tokenStation = buildTokenStation();
+  group.add(tokenStation.group);
+  interactables.push(tokenStation.interactable);
+  colliders.push(tokenStation.collider);
 
   // ————————————————————————————————
   // Exit door (front wall)
   // ————————————————————————————————
   const exitGroup = new THREE.Group();
   exitGroup.name = 'shop-exit';
-  exitGroup.userData['interactable'] = true;
-  exitGroup.userData['interactType'] = 'shop-exit';
-  exitGroup.userData['prompt'] = 'End Shift';
+  tagInteractable(exitGroup, {
+    type: 'shop-exit',
+    prompt: 'End Shift',
+  });
 
   const exitFrame = new THREE.Mesh(
     new THREE.BoxGeometry(1.1, 2.3, 0.1),
@@ -391,6 +367,7 @@ export function buildShopFloor(
   );
   vendBody.position.set(5.5, 0.8, 1);
   group.add(vendBody);
+  colliders.push({ name: 'vending-machine', x: 5.5, z: 1, halfW: 0.25, halfD: 0.225 });
 
   const vendScreen = new THREE.Mesh(
     new THREE.PlaneGeometry(0.35, 0.5),
@@ -406,76 +383,9 @@ export function buildShopFloor(
   // ————————————————————————————————
   // Secret Interactables
   // ————————————————————————————————
+  const secrets = buildShopSecrets();
+  secrets.groups.forEach((secret) => group.add(secret));
+  interactables.push(...secrets.interactables);
 
-  // Secret 1: Hidden note behind counter
-  const secretNote = new THREE.Group();
-  secretNote.name = 'secret-note';
-  secretNote.userData['interactable'] = true;
-  secretNote.userData['interactType'] = 'secret';
-  secretNote.userData['secretId'] = 'hidden-note';
-  secretNote.userData['secretName'] = 'A crumpled note';
-  secretNote.userData['prompt'] = 'Examine Note';
-
-  const noteObj = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.12, 0.08),
-    new THREE.MeshStandardMaterial({
-      color: 0xeedd99,
-      roughness: 0.95,
-    }),
-  );
-  noteObj.position.set(0, 0.01, 0);
-  noteObj.rotation.x = -Math.PI / 2;
-  secretNote.add(noteObj);
-  secretNote.position.set(-5.5, 0, -4.8);
-  group.add(secretNote);
-  interactables.push(secretNote);
-
-  // Secret 2: Loose ceiling tile (back corner)
-  const secretTile = new THREE.Group();
-  secretTile.name = 'secret-tile';
-  secretTile.userData['interactable'] = true;
-  secretTile.userData['interactType'] = 'secret';
-  secretTile.userData['secretId'] = 'loose-tile';
-  secretTile.userData['secretName'] = 'Something behind the tile...';
-  secretTile.userData['prompt'] = 'Inspect Tile';
-
-  const tileObj = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.02, 0.5),
-    new THREE.MeshStandardMaterial({
-      color: 0x222230,
-      roughness: 0.7,
-    }),
-  );
-  tileObj.position.set(0, 0, 0);
-  secretTile.add(tileObj);
-  secretTile.position.set(5.5, 3.95, -5);
-  group.add(secretTile);
-  interactables.push(secretTile);
-
-  // Secret 3: Scratched mark on floor near hidden machine spot
-  const secretMark = new THREE.Group();
-  secretMark.name = 'secret-mark';
-  secretMark.userData['interactable'] = true;
-  secretMark.userData['interactType'] = 'secret';
-  secretMark.userData['secretId'] = 'floor-mark';
-  secretMark.userData['secretName'] = 'Strange scratch marks';
-  secretMark.userData['prompt'] = 'Examine Marks';
-
-  const markObj = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.3, 0.3),
-    new THREE.MeshStandardMaterial({
-      color: 0x2a2a18,
-      roughness: 1.0,
-      transparent: true,
-      opacity: 0.6,
-    }),
-  );
-  markObj.rotation.x = -Math.PI / 2;
-  markObj.position.set(0, 0.002, 0);
-  secretMark.add(markObj);
-  secretMark.position.set(3, 0, 1.5);
-  group.add(secretMark);
-  interactables.push(secretMark);
-
-  return { group, machineGroups, interactables };
+  return { group, machineGroups, interactables, colliders };
 }

@@ -1,5 +1,7 @@
 # Catchapon — Night Shift Gacha
 
+Current Version: v1.0
+
 A cozy first-person browser game where you work the night shift at a Japanese gacha department store. Maintain temperamental capsule machines, secretly pull prizes on the clock, and build a wall of collectibles back home in your bedroom.
 
 ## 🎮 Play

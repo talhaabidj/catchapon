@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TaskSystem } from '../../src/systems/TaskSystem.js';
+import type { MachineState } from '../../src/data/types.js';
 
 describe('TaskSystem', () => {
   let tasks: TaskSystem;
@@ -93,5 +94,63 @@ describe('TaskSystem', () => {
       t.targetId.startsWith('floor-spot'),
     );
     expect(floorTasks.length).toBeGreaterThan(0);
+  });
+
+  it('prioritizes critical machine blockers when slots are limited', () => {
+    const machineStates = new Map<string, MachineState>([
+      ['machine-neko', {
+        machineId: 'machine-neko',
+        cleanliness: 'clean',
+        stockLevel: 'ok',
+        isJammed: true,
+        isPowered: true,
+      }],
+      ['machine-train', {
+        machineId: 'machine-train',
+        cleanliness: 'clean',
+        stockLevel: 'empty',
+        isJammed: false,
+        isPowered: true,
+      }],
+      ['machine-moon', {
+        machineId: 'machine-moon',
+        cleanliness: 'dirty',
+        stockLevel: 'ok',
+        isJammed: false,
+        isPowered: false,
+      }],
+    ]);
+
+    const generated = tasks.generateTasksFromMaintenance(2, machineStates, () => 0.5);
+    expect(generated.length).toBe(2);
+
+    const criticalTemplateIds = new Set(['task-fix-jam', 'task-restock', 'task-rewire']);
+    generated.forEach((task) => {
+      expect(criticalTemplateIds.has(task.templateId)).toBe(true);
+    });
+  });
+
+  it('includes empty-stock restock as a critical task candidate', () => {
+    const machineStates = new Map<string, MachineState>([
+      ['machine-neko', {
+        machineId: 'machine-neko',
+        cleanliness: 'clean',
+        stockLevel: 'empty',
+        isJammed: false,
+        isPowered: true,
+      }],
+      ['machine-train', {
+        machineId: 'machine-train',
+        cleanliness: 'dirty',
+        stockLevel: 'ok',
+        isJammed: false,
+        isPowered: true,
+      }],
+    ]);
+
+    const generated = tasks.generateTasksFromMaintenance(1, machineStates, () => 0.5);
+    expect(generated.length).toBe(1);
+    expect(generated[0]?.templateId).toBe('task-restock');
+    expect(generated[0]?.targetId).toBe('machine-neko');
   });
 });

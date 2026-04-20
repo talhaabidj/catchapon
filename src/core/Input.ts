@@ -67,6 +67,10 @@ export class Input {
     return this.keysJustPressed.has('KeyE');
   }
 
+  isRestockPressed(): boolean {
+    return this.keysJustPressed.has('KeyR');
+  }
+
   isMenuPressed(): boolean {
     return this.keysJustPressed.has('Escape');
   }

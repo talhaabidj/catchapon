@@ -7,6 +7,7 @@
  */
 
 import * as THREE from 'three';
+import { tagInteractable } from '../../core/InteractionTags.js';
 
 // Rarity → color map
 const RARITY_COLORS: Record<string, number> = {
@@ -20,9 +21,10 @@ const RARITY_COLORS: Record<string, number> = {
 export function createCollectionWall(): THREE.Group {
   const wall = new THREE.Group();
   wall.name = 'collection-wall';
-  wall.userData['interactable'] = true;
-  wall.userData['interactType'] = 'collection';
-  wall.userData['prompt'] = 'View Collection';
+  tagInteractable(wall, {
+    type: 'collection',
+    prompt: 'View Collection',
+  });
 
   // —— Material palette inspired by a wooden collector cabinet ——
   const frameWoodMat = new THREE.MeshStandardMaterial({
