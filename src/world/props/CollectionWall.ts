@@ -24,118 +24,160 @@ export function createCollectionWall(): THREE.Group {
   wall.userData['interactType'] = 'collection';
   wall.userData['prompt'] = 'View Collection';
 
-  // —— Wooden Materials ——
-  const darkWoodMat = new THREE.MeshStandardMaterial({
-    color: 0x3d2b1f,
-    roughness: 0.85,
+  // —— Material palette inspired by a wooden collector cabinet ——
+  const frameWoodMat = new THREE.MeshStandardMaterial({
+    color: 0x4a3728,
+    roughness: 0.82,
     metalness: 0.05,
   });
-  const lightWoodMat = new THREE.MeshStandardMaterial({
-    color: 0x8b6914,
-    roughness: 0.75,
-    metalness: 0.05,
+  const innerWoodMat = new THREE.MeshStandardMaterial({
+    color: 0x3d3025,
+    roughness: 0.84,
+    metalness: 0.02,
   });
-  const shelfWoodMat = new THREE.MeshStandardMaterial({
-    color: 0x654321,
-    roughness: 0.7,
-    metalness: 0.05,
+  const cubbyBackWoodMat = new THREE.MeshStandardMaterial({
+    color: 0x4a3526,
+    roughness: 0.84,
+    metalness: 0.02,
   });
-  const accentMat = new THREE.MeshStandardMaterial({
-    color: 0xdaa520,
-    emissive: 0xdaa520,
-    emissiveIntensity: 0.15,
-    roughness: 0.4,
-    metalness: 0.6,
+  const dividerMat = new THREE.MeshStandardMaterial({
+    color: 0x5f4a38,
+    roughness: 0.8,
+    metalness: 0.02,
+  });
+  const pedestalMat = new THREE.MeshStandardMaterial({
+    color: 0x6e5440,
+    roughness: 0.82,
+    metalness: 0.04,
+  });
+  const pedestalTopMat = new THREE.MeshStandardMaterial({
+    color: 0x80634c,
+    roughness: 0.78,
+    metalness: 0.03,
   });
 
-  // —— Outer Frame (thick wooden border — pushed back to avoid z-fight) ——
-  const frame = new THREE.Mesh(
-    new THREE.BoxGeometry(1.52, 1.12, 0.05),
-    darkWoodMat,
+  const outerW = 1.02;
+  const outerH = 1.18;
+  const outerD = 0.12;
+  const innerW = 0.84;
+  const innerH = 1.0;
+  const dividerThickness = 0.01;
+  const backThickness = 0.012;
+  const cellDepth = 0.112;
+  const cols = 6;
+  const rows = 7;
+
+  const frameCenterZ = -0.04;
+  const frameRail = (outerW - innerW) / 2;
+
+  // Frame built from joined rails so border seams close cleanly.
+  const topFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(outerW, frameRail, outerD),
+    frameWoodMat,
   );
-  frame.position.z = -0.025;
-  wall.add(frame);
+  topFrame.position.set(0, (outerH - frameRail) / 2, frameCenterZ);
+  wall.add(topFrame);
 
-  // —— Back Panel (lighter wood — sits behind the frame) ——
+  const bottomFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(outerW, frameRail, outerD),
+    frameWoodMat,
+  );
+  bottomFrame.position.set(0, -(outerH - frameRail) / 2, frameCenterZ);
+  wall.add(bottomFrame);
+
+  const leftFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(frameRail, innerH, outerD),
+    frameWoodMat,
+  );
+  leftFrame.position.set(-(outerW - frameRail) / 2, 0, frameCenterZ);
+  wall.add(leftFrame);
+
+  const rightFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(frameRail, innerH, outerD),
+    frameWoodMat,
+  );
+  rightFrame.position.set((outerW - frameRail) / 2, 0, frameCenterZ);
+  wall.add(rightFrame);
+
+  // Back board behind cubbies.
   const backPanel = new THREE.Mesh(
-    new THREE.BoxGeometry(1.42, 1.02, 0.02),
-    lightWoodMat,
+    new THREE.BoxGeometry(innerW, innerH, backThickness),
+    innerWoodMat,
   );
-  backPanel.position.z = -0.04;
+  backPanel.position.set(0, 0, frameCenterZ - outerD / 2 + backThickness / 2 + 0.004);
   wall.add(backPanel);
 
-  // —— Top/Bottom golden inlay trim ——
-  const topTrim = new THREE.Mesh(new THREE.BoxGeometry(1.44, 0.012, 0.012), accentMat);
-  topTrim.position.set(0, 0.5, 0.005);
-  wall.add(topTrim);
+  const cellW = (innerW - (cols + 1) * dividerThickness) / cols;
+  const cellH = (innerH - (rows + 1) * dividerThickness) / rows;
+  const dividerZ = backPanel.position.z + backThickness / 2 + cellDepth / 2;
 
-  const bottomTrim = new THREE.Mesh(new THREE.BoxGeometry(1.44, 0.012, 0.012), accentMat);
-  bottomTrim.position.set(0, -0.5, 0.005);
-  wall.add(bottomTrim);
-
-  // —— Wooden Shelves (3 rows) with bracket supports ——
-  for (let i = 0; i < 3; i++) {
-    const shelfY = -0.3 + i * 0.35;
-
-    // Shelf plank (well in front of backpanel)
-    const shelfPlank = new THREE.Mesh(
-      new THREE.BoxGeometry(1.3, 0.02, 0.13),
-      shelfWoodMat,
+  // Horizontal and vertical divider lattice forms true 3D cubicals.
+  for (let r = 0; r <= rows; r += 1) {
+    const y = innerH / 2 - dividerThickness / 2 - r * (cellH + dividerThickness);
+    const divider = new THREE.Mesh(
+      new THREE.BoxGeometry(innerW, dividerThickness, cellDepth),
+      dividerMat,
     );
-    shelfPlank.position.set(0, shelfY, 0.04);
-    wall.add(shelfPlank);
-
-    // Front lip
-    const lip = new THREE.Mesh(
-      new THREE.BoxGeometry(1.3, 0.025, 0.008),
-      darkWoodMat,
-    );
-    lip.position.set(0, shelfY + 0.014, 0.1);
-    wall.add(lip);
-
-    // L-shaped bracket supports (2 per shelf)
-    for (let b = 0; b < 2; b++) {
-      const bx = -0.5 + b * 1.0;
-
-      const bracketV = new THREE.Mesh(
-        new THREE.BoxGeometry(0.012, 0.07, 0.008),
-        accentMat,
-      );
-      bracketV.position.set(bx, shelfY - 0.045, 0.05);
-      wall.add(bracketV);
-
-      const bracketH = new THREE.Mesh(
-        new THREE.BoxGeometry(0.012, 0.008, 0.09),
-        accentMat,
-      );
-      bracketH.position.set(bx, shelfY - 0.008, 0.04);
-      wall.add(bracketH);
-    }
+    divider.position.set(0, y, dividerZ);
+    wall.add(divider);
   }
 
-  // —— 9 item slots (3 per row) ——
+  for (let c = 0; c <= cols; c += 1) {
+    const x = -innerW / 2 + dividerThickness / 2 + c * (cellW + dividerThickness);
+    const divider = new THREE.Mesh(
+      new THREE.BoxGeometry(dividerThickness, innerH, cellDepth),
+      dividerMat,
+    );
+    divider.position.set(x, 0, dividerZ);
+    wall.add(divider);
+  }
+
+  // —— Item slots distributed across the cubby matrix ——
   const slotGroup = new THREE.Group();
   slotGroup.name = 'collection-slots';
 
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 3; col++) {
-      const pedestalMat = new THREE.MeshStandardMaterial({
-        color: 0x4a3728,
-        roughness: 0.8,
-      });
-      const pedestal = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.028, 0.032, 0.01, 12),
+  const startX = -innerW / 2 + dividerThickness + cellW / 2;
+  const startY = innerH / 2 - dividerThickness - cellH / 2;
+  const cellFloorOffset = cellH / 2 - 0.01;
+  const pedestalZ = backPanel.position.z + backThickness / 2 + 0.04;
+  const cubbyBackThickness = 0.01;
+  // Keep each cubby background clearly in front of the room wall plane.
+  const cubbyBackPanelZ = frameCenterZ + 0.002;
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const xPos = startX + col * (cellW + dividerThickness);
+      const yCenter = startY - row * (cellH + dividerThickness);
+      const baseY = yCenter - cellFloorOffset;
+
+      const cubbyBackPanel = new THREE.Mesh(
+        new THREE.BoxGeometry(cellW - 0.0015, cellH - 0.0015, cubbyBackThickness),
+        cubbyBackWoodMat,
+      );
+      cubbyBackPanel.position.set(xPos, yCenter, cubbyBackPanelZ);
+      wall.add(cubbyBackPanel);
+
+      const stand = new THREE.Group();
+      stand.position.set(xPos, baseY, pedestalZ);
+      stand.visible = false;
+
+      const standBase = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.019, 0.022, 0.008, 14),
         pedestalMat,
       );
+      standBase.position.set(0, 0, 0);
+      stand.add(standBase);
 
-      const spacing = 0.35;
-      const xPos = -0.35 + col * spacing;
-      const yPos = -0.3 + row * 0.35 + 0.02;
-      const zPos = 0.045;
+      const standTop = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0165, 0.0165, 0.004, 14),
+        pedestalTopMat,
+      );
+      standTop.position.set(0, 0.006, 0);
+      stand.add(standTop);
 
-      pedestal.position.set(xPos, yPos - 0.005, zPos);
-      wall.add(pedestal);
+      slotGroup.add(stand);
 
+      const radius = Math.min(cellW, cellH) * 0.26;
       const slotMat = new THREE.MeshStandardMaterial({
         color: 0x1a1a24,
         roughness: 0.2,
@@ -144,37 +186,17 @@ export function createCollectionWall(): THREE.Group {
         opacity: 0,
       });
       const sphere = new THREE.Mesh(
-        new THREE.SphereGeometry(0.035, 16, 12),
+        new THREE.SphereGeometry(radius, 16, 12),
         slotMat,
       );
-      sphere.position.set(xPos, yPos + 0.035, zPos);
+      sphere.position.set(xPos, baseY + 0.006 + radius + 0.003, pedestalZ);
       sphere.name = `slot-${row}-${col}`;
+      sphere.userData['stand'] = stand;
+      sphere.visible = false;
       slotGroup.add(sphere);
     }
   }
   wall.add(slotGroup);
-
-  // —— Title Plaque ——
-  const plaque = new THREE.Mesh(
-    new THREE.BoxGeometry(0.45, 0.065, 0.02),
-    new THREE.MeshStandardMaterial({ color: 0x2a1f14, metalness: 0.3, roughness: 0.6 }),
-  );
-  plaque.position.set(0, 0.6, -0.01);
-  wall.add(plaque);
-
-  const plaqueAccentTop = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.004, 0.004), accentMat);
-  plaqueAccentTop.position.set(0, 0.635, 0.002);
-  wall.add(plaqueAccentTop);
-
-  const plaqueAccentBot = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.004, 0.004), accentMat);
-  plaqueAccentBot.position.set(0, 0.565, 0.002);
-  wall.add(plaqueAccentBot);
-
-  // Warm spotlight
-  const spotLight = new THREE.PointLight(0xffe0a0, 1.0, 0, 2);
-  spotLight.power = 200;
-  spotLight.position.set(0, 0.9, 0.5);
-  wall.add(spotLight);
 
   return wall;
 }
@@ -196,11 +218,29 @@ export function updateCollectionWallVisuals(
         const item = ownedItems[slotIdx]!;
         const color = RARITY_COLORS[item.rarity] ?? 0x9ca3af;
         const mat = child.material as THREE.MeshStandardMaterial;
+        child.visible = true;
         mat.color.setHex(color);
         mat.opacity = 1.0;
         mat.emissive.setHex(color);
         mat.emissiveIntensity = 0.5;
         mat.transparent = false;
+
+        const stand = child.userData['stand'];
+        if (stand instanceof THREE.Group) {
+          stand.visible = true;
+        }
+      } else {
+        const mat = child.material as THREE.MeshStandardMaterial;
+        child.visible = false;
+        mat.opacity = 0;
+        mat.transparent = true;
+        mat.emissive.setHex(0x000000);
+        mat.emissiveIntensity = 0;
+
+        const stand = child.userData['stand'];
+        if (stand instanceof THREE.Group) {
+          stand.visible = false;
+        }
       }
       slotIdx++;
     }

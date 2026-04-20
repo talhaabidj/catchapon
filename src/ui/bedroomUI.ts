@@ -97,7 +97,7 @@ export function mountBedroomUI() {
           <span class="shelf-nav-btn"><kbd>D</kbd> ▶</span>
         </div>
       </div>
-      <div class="shelf-close-hint">Press ESC to close</div>
+      <div class="shelf-close-hint">Press Q to close</div>
     </div>
   `;
   uiRoot.appendChild(container);
@@ -110,6 +110,7 @@ export function mountBedroomUI() {
     const canvas = document.querySelector('#canvas-container canvas') as HTMLCanvasElement | null;
     canvas?.requestPointerLock();
   });
+
 }
 
 export function unmountBedroomUI() {

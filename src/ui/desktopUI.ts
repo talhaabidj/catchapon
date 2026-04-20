@@ -7,6 +7,7 @@
 
 import type { Game } from '../core/Game.js';
 import { loadGameState, saveGameState, createDefaultGameState } from '../core/Save.js';
+import { SETS } from '../data/sets.js';
 
 // If Howler is present in their node_modules, this binds global audio.
 // If not installed yet, this will error in Vite until user installs it, as per M14 reqs.
@@ -71,15 +72,15 @@ export function mountDesktopUI(game: Game) {
       <button id="btn-close-overlay" style="align-self: flex-start; padding: 0.5rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; cursor: pointer; border-radius: 4px; margin-bottom: 2rem;">← Back to Desktop</button>
       
       <div id="overlay-profile" style="display: none;">
-        <h2 style="font-size: 2.5rem; margin-bottom: 1rem; color: #7c6ef0;">User Profile</h2>
-        <p style="color: #aaa; font-size: 1.2rem;">Local profile data loaded. Your performance metrics are recorded during shift hours.</p>
-        <div style="margin-top: 2rem; display: flex; gap: 2rem;">
-          <div style="background: rgba(255,255,255,0.05); padding: 2rem; border-radius: 8px;">
-            <h3>Operator Level: <span style="color: white;">Sr. Staff</span></h3>
-          </div>
-          <div style="background: rgba(255,255,255,0.05); padding: 2rem; border-radius: 8px;">
-            <h3>Clearance: <span style="color: white;">Class B</span></h3>
-          </div>
+        <h2 style="font-size: 2rem; margin-bottom: 1rem; color: #f4f7ff; letter-spacing: 0.03em;">Catchapon Terminal</h2>
+        <div style="display: flex; flex-direction: column; gap: 0.7rem; max-width: 560px;">
+          <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Nights Worked</span><span id="desktop-stat-nights" style="color:#7c6ef0; font-family: monospace;">0</span></div>
+          <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Total Money Earned</span><span id="desktop-stat-money" style="color:#7c6ef0; font-family: monospace;">$0</span></div>
+          <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Current Balance</span><span id="desktop-stat-wallet" style="color:#7c6ef0; font-family: monospace;">$0</span></div>
+          <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Items Collected</span><span id="desktop-stat-items" style="color:#7c6ef0; font-family: monospace;">0 / 25</span></div>
+          <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Sets Completed</span><span id="desktop-stat-sets" style="color:#7c6ef0; font-family: monospace;">0 / 4</span></div>
+          <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Secrets Found</span><span id="desktop-stat-secrets" style="color:#7c6ef0; font-family: monospace;">0</span></div>
+          <div style="background: rgba(124,110,240,0.08); border:1px solid rgba(124,110,240,0.2); border-radius:8px; color:#a8b0c4; padding:0.75rem 1rem; margin-top:0.3rem;">Walk to the door to start your night shift.</div>
         </div>
       </div>
 
@@ -141,6 +142,10 @@ export function mountDesktopUI(game: Game) {
     allViews.forEach(v => {
       document.getElementById(v)!.style.display = v === id ? 'block' : 'none';
     });
+
+    if (id === 'overlay-profile') {
+      updateDesktopProfileStats();
+    }
   };
 
   document.getElementById('btn-profile')?.addEventListener('click', () => openOverlay('overlay-profile'));
@@ -226,4 +231,28 @@ function updateClock() {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function updateDesktopProfileStats() {
+  const state = loadGameState() || createDefaultGameState();
+
+  let completedSets = 0;
+  for (const set of SETS) {
+    const owned = set.itemIds.filter((id) => state.ownedItemIds.includes(id));
+    if (owned.length === set.itemIds.length) completedSets += 1;
+  }
+
+  const nights = document.getElementById('desktop-stat-nights');
+  const money = document.getElementById('desktop-stat-money');
+  const wallet = document.getElementById('desktop-stat-wallet');
+  const items = document.getElementById('desktop-stat-items');
+  const sets = document.getElementById('desktop-stat-sets');
+  const secrets = document.getElementById('desktop-stat-secrets');
+
+  if (nights) nights.textContent = String(state.nightsWorked);
+  if (money) money.textContent = `$${state.totalMoneyEarned}`;
+  if (wallet) wallet.textContent = `$${state.money}`;
+  if (items) items.textContent = `${state.ownedItemIds.length} / 25`;
+  if (sets) sets.textContent = `${completedSets} / ${SETS.length}`;
+  if (secrets) secrets.textContent = String(state.secretsTriggered.length);
 }

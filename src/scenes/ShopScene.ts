@@ -103,6 +103,10 @@ export class ShopScene implements Scene {
   private witchingHourShown = false;
   private secretsTriggeredThisNight: string[] = [];
   private isPullInProgress = false;
+  private resumePointerLockPending = false;
+  private resumePointerLockAttempts = 0;
+  private resumePointerLockAssistActive = false;
+  private pauseResumeRequested = false;
 
   // Screen shake
   private shakeIntensity = 0;
@@ -221,14 +225,7 @@ export class ShopScene implements Scene {
 
     // —— Pause Logic ——
     this.controller.onPause = () => {
-      this.game.isPaused = true;
-      showPauseMenu(() => {
-        // Resume callback
-        hidePauseMenu();
-        this.game.isPaused = false;
-        // re-request pointer lock
-        this.game.canvas.requestPointerLock();
-      });
+      this.openPauseMenu();
     };
 
     // —— Wire token buy buttons ——
@@ -260,14 +257,19 @@ export class ShopScene implements Scene {
 
     // —— Pause Menu Toggle ——
     if (isPauseMenuVisible()) {
-      if (input.isMenuPressed()) {
-        hidePauseMenu();
-        this.game.isPaused = false;
-        this.game.canvas.requestPointerLock();
+      if (this.pauseResumeRequested) {
+        this.tryResumePointerLock();
+        if (document.pointerLockElement === this.game.canvas) {
+          this.finishPauseResume();
+        }
+      } else if (this.controller.isEnabled()) {
+        this.controller.setEnabled(false);
       }
       this.game.renderer.render(this.scene3d, this.camera);
       return;
     }
+
+    this.tryResumePointerLock();
 
     // —— Night end overlay active ——
     if (isNightEndVisible()) {
@@ -298,6 +300,14 @@ export class ShopScene implements Scene {
         hideTokenOverlay();
         this.controller.setEnabled(true);
       }
+      this.game.renderer.render(this.scene3d, this.camera);
+      return;
+    }
+
+    // Explicit ESC pause path keeps pause reliable even if pointer lock is
+    // temporarily desynced.
+    if (input.isMenuPressed()) {
+      this.openPauseMenu();
       this.game.renderer.render(this.scene3d, this.camera);
       return;
     }
@@ -403,6 +413,8 @@ export class ShopScene implements Scene {
     this.controller.detach();
     this.controller.dispose();
     this.interaction.dispose();
+    this.pauseResumeRequested = false;
+    this.stopResumePointerLockAssist();
     unmountShopHUD();
     unmountPauseUI();
     window.removeEventListener('resize', this.onResize);
@@ -785,13 +797,93 @@ export class ShopScene implements Scene {
 
     // Transition back to bedroom with updated state
     const { BedroomScene } = await import('./BedroomScene.js');
-    await this.game.sceneManager.switchTo(new BedroomScene(this.game, gameState));
+    await this.game.sceneManager.switchTo(
+      new BedroomScene(this.game, gameState, { showStartGateOnLoad: false }),
+    );
     fade.remove();
   }
 
   // ————————————————————————————————
   // HUD Updates
   // ————————————————————————————————
+
+  private openPauseMenu() {
+    if (isPauseMenuVisible()) return;
+
+    this.game.isPaused = true;
+    this.pauseResumeRequested = false;
+    this.resumePointerLockPending = false;
+    this.resumePointerLockAttempts = 0;
+    this.stopResumePointerLockAssist();
+    this.controller.setEnabled(false);
+    showPauseMenu(
+      () => {
+        this.resumeFromPauseMenu();
+      },
+      { requireEscapeRelease: this.game.input.isKeyDown('Escape') },
+    );
+  }
+
+  private resumeFromPauseMenu() {
+    if (this.pauseResumeRequested) return;
+
+    this.pauseResumeRequested = true;
+    this.resumePointerLockPending = true;
+    this.resumePointerLockAttempts = 0;
+    this.startResumePointerLockAssist();
+    this.tryResumePointerLock(true);
+  }
+
+  private finishPauseResume() {
+    hidePauseMenu();
+    this.game.isPaused = false;
+    this.pauseResumeRequested = false;
+    this.resumePointerLockPending = false;
+    this.stopResumePointerLockAssist();
+    this.controller.setEnabled(true);
+  }
+
+  private tryResumePointerLock(allowWhileEscDown = false) {
+    if (!this.resumePointerLockPending) return;
+
+    if (document.pointerLockElement === this.game.canvas) {
+      this.resumePointerLockPending = false;
+      this.stopResumePointerLockAssist();
+      return;
+    }
+
+    if (!allowWhileEscDown && this.game.input.isKeyDown('Escape')) return;
+
+    if (this.resumePointerLockAttempts >= 90) {
+      this.resumePointerLockPending = false;
+      this.stopResumePointerLockAssist();
+      return;
+    }
+
+    this.resumePointerLockAttempts += 1;
+    this.game.canvas.requestPointerLock();
+  }
+
+  private startResumePointerLockAssist() {
+    if (this.resumePointerLockAssistActive) return;
+    document.addEventListener('pointerdown', this.onResumePointerDownCapture, true);
+    this.resumePointerLockAssistActive = true;
+  }
+
+  private stopResumePointerLockAssist() {
+    if (!this.resumePointerLockAssistActive) return;
+    document.removeEventListener('pointerdown', this.onResumePointerDownCapture, true);
+    this.resumePointerLockAssistActive = false;
+  }
+
+  private onResumePointerDownCapture = () => {
+    if (!this.resumePointerLockPending) {
+      this.stopResumePointerLockAssist();
+      return;
+    }
+
+    this.tryResumePointerLock(true);
+  };
 
   private updateHUD() {
     updateMoney(this.economy.getMoney());

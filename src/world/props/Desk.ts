@@ -57,13 +57,55 @@ export function createDesk(): THREE.Group {
   drawer.position.set(0.58, 0.525, 0);
   desk.add(drawer);
 
-  // Drawer handle
-  const handle = new THREE.Mesh(
-    new THREE.BoxGeometry(0.12, 0.02, 0.02),
+  const drawerFrontMat = new THREE.MeshStandardMaterial({
+    color: 0x4a3526,
+    roughness: 0.8,
+  });
+  const drawerTrimMat = new THREE.MeshStandardMaterial({
+    color: 0x2f2118,
+    roughness: 0.85,
+  });
+
+  const drawerFront = new THREE.Mesh(
+    new THREE.BoxGeometry(0.372, 0.422, 0.014),
+    drawerFrontMat,
+  );
+  drawerFront.position.set(0.58, 0.525, 0.307);
+  desk.add(drawerFront);
+
+  const trimTop = new THREE.Mesh(new THREE.BoxGeometry(0.336, 0.008, 0.005), drawerTrimMat);
+  trimTop.position.set(0.58, 0.72, 0.314);
+  desk.add(trimTop);
+
+  const trimBottom = new THREE.Mesh(new THREE.BoxGeometry(0.336, 0.008, 0.005), drawerTrimMat);
+  trimBottom.position.set(0.58, 0.33, 0.314);
+  desk.add(trimBottom);
+
+  const trimLeft = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.35, 0.005), drawerTrimMat);
+  trimLeft.position.set(0.416, 0.525, 0.314);
+  desk.add(trimLeft);
+
+  const trimRight = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.35, 0.005), drawerTrimMat);
+  trimRight.position.set(0.744, 0.525, 0.314);
+  desk.add(trimRight);
+
+  const trimMiddle = new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.006, 0.004), drawerTrimMat);
+  trimMiddle.position.set(0.58, 0.525, 0.313);
+  desk.add(trimMiddle);
+
+  const topHandle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.012, 0.018),
     metalMat,
   );
-  handle.position.set(0.58, 0.58, 0.31);
-  desk.add(handle);
+  topHandle.position.set(0.58, 0.605, 0.314);
+  desk.add(topHandle);
+
+  const bottomHandle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.012, 0.018),
+    metalMat,
+  );
+  bottomHandle.position.set(0.58, 0.445, 0.314);
+  desk.add(bottomHandle);
 
   return desk;
 }
