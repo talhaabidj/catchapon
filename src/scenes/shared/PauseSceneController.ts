@@ -5,30 +5,29 @@
  * that was previously duplicated across BedroomScene and ShopScene.
  */
 
-import type { Input } from '../../core/Input.js';
 import { FirstPersonController } from '../../core/FirstPersonController.js';
-import { hidePauseMenu, showPauseMenu } from '../../ui/pauseUI.js';
+import { requestPointerLockSafely } from '../../core/PointerLock.js';
+import {
+  hidePauseMenu,
+  setPauseResumeMessage,
+  setPauseResumePending,
+  showPauseMenu,
+} from '../../ui/pauseUI.js';
 
 interface PauseSceneControllerOptions {
-  input: Input;
   canvas: HTMLCanvasElement;
   controller: FirstPersonController;
   setPaused: (paused: boolean) => void;
 }
 
 export class PauseSceneController {
-  private readonly input: Input;
   private readonly canvas: HTMLCanvasElement;
   private readonly controller: FirstPersonController;
   private readonly setPaused: (paused: boolean) => void;
 
-  private pauseResumeRequested = false;
-  private resumePointerLockPending = false;
-  private resumePointerLockAttempts = 0;
-  private resumePointerLockAssistActive = false;
+  private resumeRequestInFlight = false;
 
   constructor(options: PauseSceneControllerOptions) {
-    this.input = options.input;
     this.canvas = options.canvas;
     this.controller = options.controller;
     this.setPaused = options.setPaused;
@@ -42,93 +41,56 @@ export class PauseSceneController {
       () => {
         this.requestResumeFromMenu();
       },
-      { requireEscapeRelease: this.input.isKeyDown('Escape') },
     );
   }
 
   handlePausedFrame() {
-    if (this.pauseResumeRequested) {
-      this.tryResumePointerLock();
-      if (document.pointerLockElement === this.canvas) {
-        this.finishPauseResume();
-      }
-      return;
-    }
-
+    this.finishResumeIfPointerLocked();
     if (this.controller.isEnabled()) {
       this.controller.setEnabled(false);
     }
   }
 
-  tryResumePointerLock(allowWhileEscDown = false) {
-    if (!this.resumePointerLockPending) return;
-
+  finishResumeIfPointerLocked() {
     if (document.pointerLockElement === this.canvas) {
-      this.resumePointerLockPending = false;
-      this.stopResumePointerLockAssist();
-      return;
+      this.finishPauseResume();
     }
-
-    if (!allowWhileEscDown && this.input.isKeyDown('Escape')) return;
-
-    if (this.resumePointerLockAttempts >= 90) {
-      this.resumePointerLockPending = false;
-      this.stopResumePointerLockAssist();
-      return;
-    }
-
-    this.resumePointerLockAttempts += 1;
-    this.canvas.requestPointerLock();
   }
 
   cancelResumeFlow() {
-    this.pauseResumeRequested = false;
-    this.resumePointerLockPending = false;
-    this.resumePointerLockAttempts = 0;
-    this.stopResumePointerLockAssist();
+    this.resumeRequestInFlight = false;
+    setPauseResumePending(false);
   }
 
   dispose() {
     this.cancelResumeFlow();
   }
 
-  private requestResumeFromMenu() {
-    if (this.pauseResumeRequested) return;
+  private async requestResumeFromMenu() {
+    if (this.resumeRequestInFlight) return;
 
-    this.pauseResumeRequested = true;
-    this.resumePointerLockPending = true;
-    this.resumePointerLockAttempts = 0;
-    this.startResumePointerLockAssist();
-    this.tryResumePointerLock(true);
-  }
+    this.resumeRequestInFlight = true;
+    setPauseResumePending(true);
+    setPauseResumeMessage('Locking cursor...');
 
-  private finishPauseResume() {
-    hidePauseMenu();
-    this.setPaused(false);
-    this.pauseResumeRequested = false;
-    this.resumePointerLockPending = false;
-    this.stopResumePointerLockAssist();
-    this.controller.setEnabled(true);
-  }
-
-  private startResumePointerLockAssist() {
-    if (this.resumePointerLockAssistActive) return;
-    document.addEventListener('pointerdown', this.onResumePointerDownCapture, true);
-    this.resumePointerLockAssistActive = true;
-  }
-
-  private stopResumePointerLockAssist() {
-    if (!this.resumePointerLockAssistActive) return;
-    document.removeEventListener('pointerdown', this.onResumePointerDownCapture, true);
-    this.resumePointerLockAssistActive = false;
-  }
-
-  private onResumePointerDownCapture = () => {
-    if (!this.resumePointerLockPending) {
-      this.stopResumePointerLockAssist();
+    const result = await requestPointerLockSafely(this.canvas);
+    if (result === 'locked' || document.pointerLockElement === this.canvas) {
+      this.finishPauseResume();
       return;
     }
 
-    this.tryResumePointerLock(true);
-  };
+    this.finishPauseResume({ keepCursorFree: true });
+  }
+
+  private finishPauseResume(options: { keepCursorFree?: boolean } = {}) {
+    hidePauseMenu();
+    this.setPaused(false);
+    this.resumeRequestInFlight = false;
+    setPauseResumePending(false);
+    if (options.keepCursorFree) {
+      this.controller.resumeWithFreeCursor();
+    } else {
+      this.controller.setEnabled(true);
+    }
+  }
 }

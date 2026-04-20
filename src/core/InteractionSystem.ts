@@ -68,13 +68,7 @@ export class InteractionSystem {
     this.raycaster.setFromCamera(this.center, camera);
     this.raycaster.far = INTERACT_RANGE;
 
-    // Filter out invisible interactables on the fly (like cleared mop spots)
-    const activeMeshes = this.allMeshes.filter(m => {
-       const parent = this.meshToInteractable.get(m);
-       return parent && parent.visible;
-    });
-
-    const hits = this.raycaster.intersectObjects(activeMeshes, false);
+    const hits = this.raycaster.intersectObjects(this.allMeshes, false);
 
     if (hits.length === 0) {
       this.lastTarget = null;
@@ -83,7 +77,7 @@ export class InteractionSystem {
 
     for (const hit of hits) {
       const parent = this.meshToInteractable.get(hit.object as THREE.Mesh);
-      if (parent) {
+      if (parent?.visible && hit.object.visible) {
         this.lastTarget = {
           object: parent,
           type: getInteractType(parent),

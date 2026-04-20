@@ -12,13 +12,31 @@ import { Input } from '../../src/core/Input.js';
 
 describe('Input', () => {
   let input: Input;
+  let lockTarget: HTMLCanvasElement;
+
+  function setPointerLockElement(element: Element | null) {
+    Object.defineProperty(document, 'pointerLockElement', {
+      configurable: true,
+      value: element,
+    });
+  }
+
+  function dispatchMouseMove(movementX: number, movementY: number) {
+    const event = new MouseEvent('mousemove');
+    Object.defineProperty(event, 'movementX', { value: movementX });
+    Object.defineProperty(event, 'movementY', { value: movementY });
+    document.dispatchEvent(event);
+  }
 
   beforeEach(() => {
+    lockTarget = document.createElement('canvas');
+    setPointerLockElement(null);
     input = new Input();
   });
 
   afterEach(() => {
     input.dispose();
+    setPointerLockElement(null);
   });
 
   it('returns zero movement vector with no keys pressed', () => {
@@ -95,11 +113,31 @@ describe('Input', () => {
   });
 
   it('resets mouse delta after endFrame', () => {
-    // Mouse delta is accumulated from mousemove events
-    // After endFrame, it should reset
+    setPointerLockElement(lockTarget);
+    dispatchMouseMove(9, -3);
+
     input.endFrame();
     const delta = input.getMouseDelta();
     expect(delta.x).toBe(0);
     expect(delta.y).toBe(0);
+  });
+
+  it('ignores mouse delta while pointer is unlocked', () => {
+    dispatchMouseMove(14, -6);
+    expect(input.getMouseDelta()).toEqual({ x: 0, y: 0 });
+  });
+
+  it('tracks mouse delta while pointer is locked', () => {
+    setPointerLockElement(lockTarget);
+    dispatchMouseMove(14, -6);
+    expect(input.getMouseDelta()).toEqual({ x: 14, y: -6 });
+  });
+
+  it('clears stale mouse delta when pointer lock state changes', () => {
+    setPointerLockElement(lockTarget);
+    dispatchMouseMove(14, -6);
+    document.dispatchEvent(new Event('pointerlockchange'));
+
+    expect(input.getMouseDelta()).toEqual({ x: 0, y: 0 });
   });
 });

@@ -16,6 +16,7 @@ export class Input {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     document.addEventListener('mousemove', this.onMouseMove);
+    document.addEventListener('pointerlockchange', this.clearMouseDelta);
   }
 
   // —— Event handlers ——
@@ -33,8 +34,15 @@ export class Input {
   };
 
   private onMouseMove = (e: MouseEvent) => {
+    if (!document.pointerLockElement) return;
+
     this.mouseDeltaX += e.movementX;
     this.mouseDeltaY += e.movementY;
+  };
+
+  private clearMouseDelta = () => {
+    this.mouseDeltaX = 0;
+    this.mouseDeltaY = 0;
   };
 
   // —— Queries ——
@@ -102,5 +110,6 @@ export class Input {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     document.removeEventListener('mousemove', this.onMouseMove);
+    document.removeEventListener('pointerlockchange', this.clearMouseDelta);
   }
 }

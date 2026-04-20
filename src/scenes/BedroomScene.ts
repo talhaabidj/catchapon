@@ -14,8 +14,10 @@
 import * as THREE from 'three';
 import type { Scene, GameState } from '../data/types.js';
 import type { Game } from '../core/Game.js';
+import { gameAudio } from '../core/Audio.js';
 import { FirstPersonController } from '../core/FirstPersonController.js';
 import { InteractionSystem } from '../core/InteractionSystem.js';
+import { requestPointerLockSafely } from '../core/PointerLock.js';
 import { PLAYER_HEIGHT } from '../core/Config.js';
 import type { BedroomCollider } from '../world/Bedroom.js';
 import { buildBedroom } from '../world/Bedroom.js';
@@ -88,7 +90,6 @@ export class BedroomScene implements Scene {
       this.game.input,
     );
     this.pauseController = new PauseSceneController({
-      input: this.game.input,
       canvas: this.game.canvas,
       controller: this.controller,
       setPaused: (paused) => {
@@ -118,8 +119,9 @@ export class BedroomScene implements Scene {
     this.interaction.setInteractables(interactables);
 
     // —— Camera start position (center of room, facing door) ——
-    this.camera.position.set(0, PLAYER_HEIGHT, 0.5);
+    this.camera.position.set(0.5, PLAYER_HEIGHT, 0.5);
     this.controller.attach(this.camera);
+    this.controller.setLookAngles(Math.PI, 0);
 
     // —— Mount UI ——
     mountBedroomUI();
@@ -175,7 +177,7 @@ export class BedroomScene implements Scene {
       return;
     }
 
-    this.pauseController.tryResumePointerLock();
+    this.pauseController.finishResumeIfPointerLocked();
 
     // —— Overlay handling ——
     if (isAnyOverlayOpen()) {
@@ -203,7 +205,7 @@ export class BedroomScene implements Scene {
         hidePCOverlay();
         hideCollectionOverlay();
         this.controller.setEnabled(true);
-        this.game.canvas.requestPointerLock();
+        requestPointerLockSafely(this.game.canvas);
       }
 
       // Render but don't process movement
@@ -293,9 +295,10 @@ export class BedroomScene implements Scene {
         break;
 
       case 'collection':
+        gameAudio.play('ui');
         openCollectionViewer(this.gameState.ownedItemIds);
         this.controller.setEnabled(true);
-        this.game.canvas.requestPointerLock();
+        requestPointerLockSafely(this.game.canvas);
         break;
 
       case 'door':
@@ -349,6 +352,7 @@ export class BedroomScene implements Scene {
     const beginFromOverlay = () => {
       if (!this.awaitingBedroomStartClick) return;
 
+      gameAudio.play('ui');
       this.awaitingBedroomStartClick = false;
       this.bedroomStartOverlayEl = null;
 
@@ -358,7 +362,7 @@ export class BedroomScene implements Scene {
       }, 160);
 
       this.controller.setEnabled(true);
-      this.game.canvas.requestPointerLock();
+      requestPointerLockSafely(this.game.canvas);
     };
 
     overlay.addEventListener('pointerdown', beginFromOverlay);
@@ -373,6 +377,7 @@ export class BedroomScene implements Scene {
 
     hideInteractPrompt();
     this.isNightShiftStarting = true;
+    gameAudio.play('transition');
     void this.beginNightShiftTransition();
   }
 
@@ -406,6 +411,7 @@ export class BedroomScene implements Scene {
   private async returnToDesktopStart() {
     if (this.isReturningToDesktop) return;
     this.isReturningToDesktop = true;
+    gameAudio.play('transition');
 
     const transitionOverlay = await playDesktopReturnTransition();
 

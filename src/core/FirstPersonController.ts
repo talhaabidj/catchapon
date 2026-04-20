@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import { Input } from './Input.js';
+import { requestPointerLockSafely } from './PointerLock.js';
 import {
   WALK_SPEED,
   RUN_SPEED,
@@ -35,6 +36,9 @@ export class FirstPersonController {
   // Current orientation
   private yaw = 0; // rotation around Y-axis
   private pitch = 0; // rotation around X-axis
+  private readonly forward = new THREE.Vector3();
+  private readonly right = new THREE.Vector3();
+  private readonly upAxis = new THREE.Vector3(0, 1, 0);
 
   // Configuration (can be updated from settings)
   sensitivity = MOUSE_SENSITIVITY;
@@ -73,6 +77,12 @@ export class FirstPersonController {
     this.camera = null;
   }
 
+  setLookAngles(yaw: number, pitch = 0) {
+    this.yaw = yaw;
+    this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, pitch));
+    this.applyCameraRotation();
+  }
+
   /** Enable or disable the controller (e.g. when a modal opens) */
   setEnabled(value: boolean) {
     this.enabled = value;
@@ -90,6 +100,12 @@ export class FirstPersonController {
 
   isEnabled(): boolean {
     return this.enabled;
+  }
+
+  /** Resume play without auto-locking; the next canvas click can lock again. */
+  resumeWithFreeCursor() {
+    this.cursorFreed = true;
+    this.enabled = true;
   }
 
   /** Temporarily free or re-lock cursor without pausing */
@@ -119,10 +135,7 @@ export class FirstPersonController {
       this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, this.pitch));
     }
 
-    // Apply rotation
-    this.camera.rotation.order = 'YXZ';
-    this.camera.rotation.y = this.yaw;
-    this.camera.rotation.x = this.pitch;
+    this.applyCameraRotation();
 
     // —— Movement ——
     const moveVec = this.input.getMovementVector();
@@ -131,14 +144,11 @@ export class FirstPersonController {
       const distance = speed * dt;
 
       // Movement direction relative to camera yaw
-      const forward = new THREE.Vector3(0, 0, -1);
-      forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+      this.forward.set(0, 0, -1).applyAxisAngle(this.upAxis, this.yaw);
+      this.right.set(1, 0, 0).applyAxisAngle(this.upAxis, this.yaw);
 
-      const right = new THREE.Vector3(1, 0, 0);
-      right.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-
-      this.camera.position.addScaledVector(forward, -moveVec.z * distance);
-      this.camera.position.addScaledVector(right, moveVec.x * distance);
+      this.camera.position.addScaledVector(this.forward, -moveVec.z * distance);
+      this.camera.position.addScaledVector(this.right, moveVec.x * distance);
 
       // Keep at player height (no flying)
       this.camera.position.y = PLAYER_HEIGHT;
@@ -149,9 +159,16 @@ export class FirstPersonController {
 
   private requestPointerLock = () => {
     if (this.enabled && !this.isPointerLocked) {
-      this.domElement.requestPointerLock();
+      requestPointerLockSafely(this.domElement);
     }
   };
+
+  private applyCameraRotation() {
+    if (!this.camera) return;
+    this.camera.rotation.order = 'YXZ';
+    this.camera.rotation.y = this.yaw;
+    this.camera.rotation.x = this.pitch;
+  }
 
   private onPointerLockChange = () => {
     const wasLocked = this.isPointerLocked;

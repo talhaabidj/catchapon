@@ -1,18 +1,4 @@
 let hideTimer: number | null = null;
-let escResumeKeyDownHandler: ((e: KeyboardEvent) => void) | null = null;
-let escResumeKeyUpHandler: ((e: KeyboardEvent) => void) | null = null;
-
-function clearEscResumeHandlers() {
-  if (escResumeKeyDownHandler) {
-    document.removeEventListener('keydown', escResumeKeyDownHandler);
-    escResumeKeyDownHandler = null;
-  }
-
-  if (escResumeKeyUpHandler) {
-    document.removeEventListener('keyup', escResumeKeyUpHandler);
-    escResumeKeyUpHandler = null;
-  }
-}
 
 function createInfoSection(title: string, lines: string[]) {
   const section = document.createElement('section');
@@ -110,7 +96,8 @@ export function mountPauseUI() {
   `;
 
   const subtitle = document.createElement('p');
-  subtitle.innerText = 'Press ESC to resume quickly, or use Resume Game.';
+  subtitle.id = 'pause-status';
+  subtitle.innerText = 'Click Resume Game to lock the cursor and continue. If your browser blocks it, click the game view once.';
   subtitle.style.cssText = `
     margin: 0.35rem 0 1rem;
     color: #b7c0d6;
@@ -131,7 +118,7 @@ export function mountPauseUI() {
     'E: Interact with objects',
     'Q: Close active overlay',
     'Left Ctrl: Toggle free cursor',
-    'ESC: Pause or resume',
+    'ESC: Open pause menu',
   ]));
 
   sections.appendChild(createInfoSection('How To Play', [
@@ -210,13 +197,11 @@ export function unmountPauseUI() {
     window.clearTimeout(hideTimer);
     hideTimer = null;
   }
-  clearEscResumeHandlers();
   document.getElementById('pause-menu')?.remove();
 }
 
 export function showPauseMenu(
   onResumeCallback: () => void,
-  options?: { requireEscapeRelease?: boolean },
 ) {
   const menu = document.getElementById('pause-menu');
   const panel = document.getElementById('pause-panel');
@@ -231,37 +216,31 @@ export function showPauseMenu(
   menu.setAttribute('aria-hidden', 'false');
   menu.style.visibility = 'visible';
   menu.style.pointerEvents = 'auto';
+  setPauseResumePending(false);
+  setPauseResumeMessage(
+    'Click Resume Game to lock the cursor and continue. If your browser blocks it, click the game view once.',
+  );
 
   requestAnimationFrame(() => {
     menu.style.opacity = '1';
     panel.style.transform = 'translateY(0) scale(1)';
   });
 
-  let escResumeReady = !(options?.requireEscapeRelease ?? true);
-  clearEscResumeHandlers();
-
-  escResumeKeyUpHandler = (e: KeyboardEvent) => {
-    if (e.code === 'Escape') {
-      escResumeReady = true;
-    }
-  };
-
-  escResumeKeyDownHandler = (e: KeyboardEvent) => {
-    if (e.code !== 'Escape') return;
-    if (!escResumeReady) return;
-    e.preventDefault();
-    if (menu.dataset['open'] !== 'true') return;
-    onResumeCallback();
-  };
-
-  document.addEventListener('keyup', escResumeKeyUpHandler);
-  document.addEventListener('keydown', escResumeKeyDownHandler);
-
   const resumeBtn = document.getElementById('pause-resume-btn') as HTMLButtonElement | null;
   if (resumeBtn) {
-    resumeBtn.onclick = () => {
+    const requestResume = () => {
       if (menu.dataset['open'] !== 'true') return;
       onResumeCallback();
+    };
+    resumeBtn.onpointerdown = (event) => {
+      event.preventDefault();
+      requestResume();
+    };
+    resumeBtn.onclick = requestResume;
+    resumeBtn.onkeydown = (event) => {
+      if (event.code !== 'Enter' && event.code !== 'Space') return;
+      event.preventDefault();
+      requestResume();
     };
     resumeBtn.focus({ preventScroll: true });
   }
@@ -271,8 +250,6 @@ export function hidePauseMenu() {
   const menu = document.getElementById('pause-menu');
   const panel = document.getElementById('pause-panel');
   if (!menu || !panel) return;
-
-  clearEscResumeHandlers();
 
   menu.dataset['open'] = 'false';
   menu.setAttribute('aria-hidden', 'true');
@@ -293,4 +270,19 @@ export function hidePauseMenu() {
 
 export function isPauseMenuVisible(): boolean {
   return document.getElementById('pause-menu')?.dataset['open'] === 'true';
+}
+
+export function setPauseResumePending(isPending: boolean) {
+  const resumeBtn = document.getElementById('pause-resume-btn') as HTMLButtonElement | null;
+  if (!resumeBtn) return;
+
+  resumeBtn.disabled = isPending;
+  resumeBtn.innerText = isPending ? 'Locking Cursor...' : 'Resume Game';
+  resumeBtn.style.cursor = isPending ? 'wait' : 'pointer';
+  resumeBtn.style.opacity = isPending ? '0.72' : '1';
+}
+
+export function setPauseResumeMessage(message: string) {
+  const status = document.getElementById('pause-status');
+  if (status) status.innerText = message;
 }

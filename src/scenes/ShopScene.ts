@@ -17,8 +17,10 @@
 import * as THREE from 'three';
 import type { Scene, MachineDefinition, MachineState } from '../data/types.js';
 import type { Game } from '../core/Game.js';
+import { gameAudio } from '../core/Audio.js';
 import { FirstPersonController } from '../core/FirstPersonController.js';
 import { InteractionSystem } from '../core/InteractionSystem.js';
+import { requestPointerLockSafely } from '../core/PointerLock.js';
 import { PLAYER_HEIGHT, PULL_TIME_COST } from '../core/Config.js';
 import { loadGameState, saveGameState } from '../core/Save.js';
 import type { GameState } from '../data/types.js';
@@ -149,6 +151,7 @@ export class ShopScene implements Scene {
   private witchingHourShown = false;
   private secretsTriggeredThisNight: string[] = [];
   private isPullInProgress = false;
+  private isReturningHome = false;
   private hasCapsuleRefill = false;
 
   // Screen shake
@@ -176,7 +179,6 @@ export class ShopScene implements Scene {
       this.game.input,
     );
     this.pauseController = new PauseSceneController({
-      input: this.game.input,
       canvas: this.game.canvas,
       controller: this.controller,
       setPaused: (paused) => {
@@ -285,7 +287,7 @@ export class ShopScene implements Scene {
     document.getElementById('token-overlay-close')?.addEventListener('click', () => {
       hideTokenOverlay();
       this.controller.setEnabled(true);
-      this.game.canvas.requestPointerLock();
+      requestPointerLockSafely(this.game.canvas);
     });
 
     // —— Wire night continue button ——
@@ -307,7 +309,7 @@ export class ShopScene implements Scene {
       return;
     }
 
-    this.pauseController.tryResumePointerLock();
+    this.pauseController.finishResumeIfPointerLocked();
 
     // —— Night end overlay active ——
     if (isNightEndVisible()) {
@@ -695,6 +697,7 @@ export class ShopScene implements Scene {
 
     // Check if machine is available for pulling
     if (!this.maintenance.canPull(machineId)) {
+      gameAudio.play('error');
       showToast(
         getMachineOutOfOrderPrompt(
           this.maintenance.getState(machineId),
@@ -707,14 +710,12 @@ export class ShopScene implements Scene {
 
     // Check tokens
     if (!this.economy.spendPull()) {
+      gameAudio.play('error');
       showToast('Need tokens before pulling', 1400);
       return;
     }
     this.isPullInProgress = true;
-
-    // Audio sequence for anticipation (M14)
-    // Here we trigger the Howler global sound for a gacha capsule crank...
-    // (Assuming sounds are placed globally or just use a placeholder toast/visual lag)
+    gameAudio.play('crank');
     
     // Fake crank anticipation UI: show "..." text on machine?
     showShopPrompt(`Cranking...`);
@@ -778,6 +779,7 @@ export class ShopScene implements Scene {
           this.isPullInProgress = false;
         }
       );
+      gameAudio.play('reveal');
 
       // Screen shake — scales with rarity
       const shakeMap: Record<string, number> = {
@@ -796,6 +798,7 @@ export class ShopScene implements Scene {
 
   private handleTokenStation() {
     if (!canUseTokenStation(this.tokenStationState)) {
+      gameAudio.play('error');
       showToast(ARCADE_STATUS_TEXT.outOfOrderServiceRequired, 1800);
       return;
     }
@@ -850,16 +853,19 @@ export class ShopScene implements Scene {
 
   private handleStorageCrate() {
     if (!this.hasAnyRestockNeed()) {
+      gameAudio.play('error');
       showToast('No restock task pending right now', 1500);
       return;
     }
 
     if (this.hasCapsuleRefill) {
+      gameAudio.play('error');
       showToast('Already carrying a refill canister', 1300);
       return;
     }
 
     this.hasCapsuleRefill = true;
+    gameAudio.play('ui');
     showToast('Picked up refill canister from storage crate', 1600);
   }
 
@@ -893,6 +899,7 @@ export class ShopScene implements Scene {
     this.economy.earnMoney(mopResult.rewardGained);
     this.moneyEarnedThisNight += mopResult.rewardGained;
     this.time.advance(mopResult.timeCost);
+    gameAudio.play(mopResult.isCompleted ? 'success' : 'ui');
 
     if (mopResult.isCompleted) {
       this.tasks.completeTask(taskIndex);
@@ -913,6 +920,7 @@ export class ShopScene implements Scene {
 
   private buyTokens(count: number) {
     if (!canUseTokenStation(this.tokenStationState)) {
+      gameAudio.play('error');
       showToast(ARCADE_STATUS_TEXT.outOfOrderServiceRequired, 1800);
       this.updateTokenStationDisplay();
       return;
@@ -920,8 +928,11 @@ export class ShopScene implements Scene {
 
     const bought = this.economy.buyTokens(count);
     if (bought > 0) {
+      gameAudio.play('coin');
       this.updateHUD();
       updateTokenBalance(this.economy.getMoney());
+    } else {
+      gameAudio.play('error');
     }
   }
 
@@ -970,6 +981,7 @@ export class ShopScene implements Scene {
       if (template.type === 'restock' && !this.hasCapsuleRefill) {
         const outOfStock = targetState?.stockLevel === 'empty';
         if (outOfStock) {
+          gameAudio.play('error');
           showToast('Get refill canister from the storage crate first', 1600);
           return false;
         }
@@ -984,6 +996,7 @@ export class ShopScene implements Scene {
         this.economy.earnMoney(reward);
         this.moneyEarnedThisNight += reward;
         this.time.advance(timeCost);
+        gameAudio.play('success');
         showToast(`+$${reward} earned`, 1800);
 
         // Update maintenance state based on task
@@ -1055,6 +1068,7 @@ export class ShopScene implements Scene {
     const owned = this.collection.getDuplicateCandidates();
     const status = getWondertradeStatus(owned, ITEMS);
     if (!status.canTrade) {
+      gameAudio.play('error');
       if (status.reason === 'need-owned-items') {
         showToast('Need at least one collected item for Wonder Exchange', 1800);
       } else {
@@ -1065,11 +1079,13 @@ export class ShopScene implements Scene {
 
     const outcome = rollWondertradeOutcome(owned, ITEMS);
     if (!outcome) {
+      gameAudio.play('error');
       showToast('Wonder Exchange unavailable right now', 1500);
       return;
     }
 
     this.isPullInProgress = true;
+    gameAudio.play('crank');
     showShopPrompt('Trading...');
 
     setTimeout(() => {
@@ -1106,6 +1122,7 @@ export class ShopScene implements Scene {
           this.isPullInProgress = false;
         }
       );
+      gameAudio.play('reveal');
       this.updateHUD();
     }, 1000);
   }
@@ -1125,6 +1142,7 @@ export class ShopScene implements Scene {
       this.secretsTriggeredThisNight.push(secretId);
 
       const secretName = getSecretName(object) ?? 'Something strange...';
+      gameAudio.play('secret');
       showToast(`🔍 Secret discovered: ${secretName}`, 4000);
 
       // Bonus money for finding secrets
@@ -1158,6 +1176,7 @@ export class ShopScene implements Scene {
       secretsTriggered: this.secretsTriggeredThisNight,
     });
 
+    gameAudio.play('nightEnd');
     showNightEndOverlay(buildNightEndSummary(
       this.itemsObtainedThisNight,
       tasksCompleted,
@@ -1181,6 +1200,12 @@ export class ShopScene implements Scene {
   }
 
   private async returnHome() {
+    if (this.isReturningHome) return;
+    this.isReturningHome = true;
+
+    this.controller.setEnabled(false);
+    this.pauseController.cancelResumeFlow();
+
     // Save game state
     const gameState = this.buildGameState();
     saveGameState(gameState);

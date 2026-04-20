@@ -9,6 +9,7 @@
  */
 
 import type { Item, GameState } from '../data/types.js';
+import { requestPointerLockSafely } from '../core/PointerLock.js';
 import { SETS } from '../data/sets.js';
 import { getItemById } from '../data/items.js';
 
@@ -108,7 +109,7 @@ export function mountBedroomUI() {
 
     // Reacquire lock from a direct user click so browser activation rules allow it.
     const canvas = document.querySelector('#canvas-container canvas') as HTMLCanvasElement | null;
-    canvas?.requestPointerLock();
+    if (canvas) requestPointerLockSafely(canvas);
   });
 
 }

@@ -6,6 +6,7 @@
  */
 
 import type { Game } from '../core/Game.js';
+import { gameAudio } from '../core/Audio.js';
 import { loadGameState, saveGameState, createDefaultGameState } from '../core/Save.js';
 import { SETS } from '../data/sets.js';
 
@@ -181,6 +182,7 @@ export function mountDesktopUI(game: Game) {
       if (HowlerModule && HowlerModule.Howler) {
           HowlerModule.Howler.volume(state.settings.masterVolume);
       }
+      gameAudio.syncSettings();
     });
   }
 
@@ -212,6 +214,8 @@ export function unmountDesktopUI() {
 // —— Internal helpers ——
 
 function handleStartShift(game: Game, container: HTMLElement) {
+  gameAudio.play('transition');
+
   // Add dive animation class
   container.classList.add('desktop-dive');
 

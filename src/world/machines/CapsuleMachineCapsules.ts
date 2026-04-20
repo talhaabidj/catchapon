@@ -9,6 +9,7 @@ export interface CapsuleData {
 export interface CapsuleVisualState {
   mesh: THREE.InstancedMesh;
   data: CapsuleData[];
+  matrixDummy: THREE.Object3D;
 }
 
 export const FULL_STOCK_CAPSULE_COUNT = 45;
@@ -101,7 +102,7 @@ function createCapsuleVisualState(
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
-  return { mesh, data };
+  return { mesh, data, matrixDummy: new THREE.Object3D() };
 }
 
 function disposeInstancedMesh(mesh: THREE.InstancedMesh) {
@@ -149,8 +150,7 @@ export function animateMachineCapsules(
     return dt;
   }
 
-  const { mesh, data } = capsules;
-  const dummy = new THREE.Object3D();
+  const { mesh, data, matrixDummy: dummy } = capsules;
   let needsMatrixUpdate = false;
 
   for (let i = 0; i < data.length; i += 1) {
