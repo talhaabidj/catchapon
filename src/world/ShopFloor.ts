@@ -786,13 +786,14 @@ export function buildShopFloor(
 
   // Removed moved materials
 
-  const addCeilingFixture = (x: number, z: number, length = 2.4) => {
+  const addCeilingFixture = (x: number, z: number, length = 2.4, rotationY = 0) => {
     // Flush mount base (was body)
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(length, 0.08, 0.44),
       fixtureCanopyMat,
     );
     base.position.set(x, 3.96, z); // Ceiling is at 4.0
+    base.rotation.y = rotationY;
     group.add(base);
 
     // Main rectangular diffuser
@@ -801,27 +802,40 @@ export function buildShopFloor(
       fixtureDiffuserMat,
     );
     diffuser.position.set(x, 3.9, z);
+    diffuser.rotation.y = rotationY;
     group.add(diffuser);
 
-    // Warm light emission
-    const light = new THREE.PointLight(0xffe6c2, 1.0, 0, 2);
-    light.power = 850; // Increased to compensate for warm wrap
+    // Realistic downward lighting (SpotLight instead of PointLight)
+    // This physically prevents light from shining *up* onto the ceiling
+    // Creating a proper soft downward throw
+    const light = new THREE.SpotLight(0xffe6c2, 1.0);
+    light.angle = Math.PI / 2.2; // Very wide cone, ~160 deg total spread
+    light.penumbra = 1.0; // Perfect soft edge
+    light.decay = 2;
+    light.distance = 0;
+    light.power = 850;
     light.position.set(x, 3.8, z);
+    
+    const target = new THREE.Object3D();
+    target.position.set(x, 0, z); // Target points straight down to floor
+    group.add(target);
+    light.target = target;
+    
     group.add(light);
   };
 
-  const fixturePositions: Array<[number, number]> = [
-    [-4.8, -2.65],
-    [-1.6, -2.65],
-    [1.6, -2.65],
-    [4.8, -2.65],
-    [-4.8, 1.05],
-    [-1.6, 1.05],
-    [1.6, 1.05],
-    [4.95, 2.45],
+  const fixturePositions: Array<[number, number, number]> = [
+    [-4.8, -2.65, Math.PI / 2],
+    [-1.6, -2.65, Math.PI / 2],
+    [1.6, -2.65, Math.PI / 2],
+    [4.8, -2.65, Math.PI / 2],
+    [-4.8, 1.05, Math.PI / 2],
+    [-1.6, 1.05, Math.PI / 2],
+    [1.6, 1.05, Math.PI / 2],
+    [4.95, 2.45, Math.PI / 2],
   ];
-  fixturePositions.forEach(([x, z]) => {
-    addCeilingFixture(x, z);
+  fixturePositions.forEach(([x, z, rot]) => {
+    addCeilingFixture(x, z, 2.4, rot);
   });
 
   const bounceA = new THREE.PointLight(0xffd7ad, 1.0, 0, 2);

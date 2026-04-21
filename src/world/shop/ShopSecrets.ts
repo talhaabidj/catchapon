@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { tagInteractable } from '../../core/InteractionTags.js';
 
 export interface BuiltShopSecrets {
   groups: THREE.Group[];
