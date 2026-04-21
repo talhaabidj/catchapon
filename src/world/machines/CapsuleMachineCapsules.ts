@@ -178,7 +178,60 @@ export function animateMachineCapsules(
   for (let i = 0; i < data.length; i += 1) {
     const capsule = data[i]!;
 
-    // Skip settled capsules entirely — big perf win for 45×N machines.
+    // Capsule-to-Capsule Fake Physics (O(N^2) but N=45 so it's ~900 checks = 0ms overhead)
+    for (let j = i + 1; j < data.length; j += 1) {
+      const other = data[j]!;
+      const dx = other.pos.x - capsule.pos.x;
+      const dy = other.pos.y - capsule.pos.y;
+      const dz = other.pos.z - capsule.pos.z;
+      const distSq = dx * dx + dy * dy + dz * dz;
+
+      const RADIUS = 0.045;
+      const MIN_DIST = RADIUS * 2;
+      const MIN_DIST_SQ = MIN_DIST * MIN_DIST;
+
+      // Only evaluate if they are intersecting
+      if (distSq > 0.00001 && distSq < MIN_DIST_SQ) {
+        const dist = Math.sqrt(distSq);
+        const overlap = MIN_DIST - dist;
+
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const nz = dz / dist;
+
+        // Force wake resting capsules if hit hard enough
+        if (capsule.settled && other.vel.lengthSq() > 0.02) capsule.settled = false;
+        if (other.settled && capsule.vel.lengthSq() > 0.02) other.settled = false;
+
+        if (!capsule.settled && !other.settled) {
+          // Push both apart evenly
+          const push = overlap * 0.5;
+          capsule.pos.x -= nx * push;
+          capsule.pos.y -= ny * push;
+          capsule.pos.z -= nz * push;
+          other.pos.x += nx * push;
+          other.pos.y += ny * push;
+          other.pos.z += nz * push;
+
+          // Fake velocity dampening and bounce transfer (slows them down organically)
+          capsule.vel.x -= nx * 0.15;
+          capsule.vel.z -= nz * 0.15;
+          other.vel.x += nx * 0.15;
+          other.vel.z += nz * 0.15;
+        } else if (!capsule.settled) {
+          // One is settled acting as a wall, so push the active one fully out
+          capsule.pos.x -= nx * overlap;
+          capsule.pos.y -= ny * overlap;
+          capsule.pos.z -= nz * overlap;
+        } else if (!other.settled) {
+          other.pos.x += nx * overlap;
+          other.pos.y += ny * overlap;
+          other.pos.z += nz * overlap;
+        }
+      }
+    }
+
+    // Skip settled capsules from gravity/wall physics
     if (capsule.settled) continue;
 
     // Gravity.

@@ -149,16 +149,36 @@ export function buildStorageCrate(): BuiltStorageCrate {
   }
 
   const spillCapsules: THREE.Object3D[] = [];
+  const topGeo = new THREE.SphereGeometry(0.04, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+  const bottomGeo = new THREE.SphereGeometry(0.04, 12, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+  const clearMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.35,
+    roughness: 0.1,
+    metalness: 0.1,
+    side: THREE.DoubleSide
+  });
+
   for (let i = 0; i < 8; i += 1) {
-    const spill = new THREE.Mesh(
-      new THREE.SphereGeometry(0.04, 8, 6),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color().setHSL((i * 0.14) % 1, 0.62, 0.54),
-        roughness: 0.45,
-      }),
-    );
-    spill.position.set(4.78 + Math.random() * 0.58, 0.04, -8.72 + Math.random() * 0.34);
-    spillCapsules.push(spill);
+    const spillGroup = new THREE.Group();
+    const colorMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL((i * 0.14) % 1, 0.62, 0.54),
+      roughness: 0.3,
+      metalness: 0.1,
+    });
+    
+    const topMesh = new THREE.Mesh(topGeo, clearMat);
+    const bottomMesh = new THREE.Mesh(bottomGeo, colorMat);
+    spillGroup.add(topMesh);
+    spillGroup.add(bottomMesh);
+
+    // Give them a random resting orientation
+    spillGroup.rotation.x = Math.random() * Math.PI;
+    spillGroup.rotation.z = Math.random() * Math.PI;
+
+    spillGroup.position.set(4.78 + Math.random() * 0.58, 0.04, -8.72 + Math.random() * 0.34);
+    spillCapsules.push(spillGroup);
   }
 
   return {
