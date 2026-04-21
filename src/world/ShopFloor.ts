@@ -31,8 +31,8 @@ const SHOP_HEIGHT = 4;
 const SHOP_DEPTH = 12;
 const HALF_W = SHOP_WIDTH / 2;
 const HALF_D = SHOP_DEPTH / 2;
-const EXIT_OPENING_WIDTH = 1.66;
-const EXIT_OPENING_HEIGHT = 2.82;
+const EXIT_OPENING_WIDTH = 1.24;
+const EXIT_OPENING_HEIGHT = 2.70;
 
 export function buildShopFloor(
   machines: MachineDefinition[],
@@ -245,7 +245,7 @@ export function buildShopFloor(
     new THREE.BoxGeometry(storeDoorWidth - 0.2, 0.24, 0.008),
     storeDoorMetalMat,
   );
-  storeDoorKick.position.set(storeDoorWidth / 2, 0.22, 0.03);
+  storeDoorKick.position.set(storeDoorWidth / 2, 0.22, -0.03);
   storeDoorPivot.add(storeDoorKick);
 
   const storeLeverRose = new THREE.Mesh(
@@ -253,23 +253,17 @@ export function buildShopFloor(
     storeDoorMetalMat,
   );
   storeLeverRose.rotation.x = Math.PI / 2;
-  storeLeverRose.position.set(storeDoorWidth - 0.14, 1.04, 0.032);
+  storeLeverRose.position.set(storeDoorWidth - 0.14, 1.04, -0.032);
   storeDoorPivot.add(storeLeverRose);
 
   const storeLeverHandle = new THREE.Mesh(
     new THREE.BoxGeometry(0.11, 0.014, 0.014),
     storeDoorMetalMat,
   );
-  storeLeverHandle.position.set(storeDoorWidth - 0.08, 1.04, 0.036);
+  storeLeverHandle.position.set(storeDoorWidth - 0.08, 1.04, -0.036);
   storeDoorPivot.add(storeLeverHandle);
 
-  const hingeGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.11, 10);
-  [storeDoorHeight - 0.34, storeDoorHeight * 0.5, 0.38].forEach((y) => {
-    const hinge = new THREE.Mesh(hingeGeo, storeDoorMetalMat);
-    hinge.rotation.x = Math.PI / 2;
-    hinge.position.set(0.02, y, -0.018);
-    storeDoorPivot.add(hinge);
-  });
+  // Removed hinges on the left side of the storeroom door as requested
 
   // —— Storeroom geometry ——
   const storeWallMat = new THREE.MeshStandardMaterial({
@@ -710,18 +704,24 @@ export function buildShopFloor(
   doorStileR.position.set(0.425, 1.1, 0.035);
   exitGroup.add(doorStileR);
 
-  const exitGlass = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.76, 1.68),
-    exitGlassMat,
+  // Solid elegant entrance door instead of basic glass
+  const solidDoorMat = new THREE.MeshStandardMaterial({
+    color: 0x222631,
+    roughness: 0.6,
+    metalness: 0.1,
+  });
+  const exitDoorPanel = new THREE.Mesh(
+    new THREE.BoxGeometry(0.76, 1.68, 0.04),
+    solidDoorMat,
   );
-  exitGlass.position.set(0, 1.2, 0.068);
-  exitGroup.add(exitGlass);
+  exitDoorPanel.position.set(0, 1.2, 0.05);
+  exitGroup.add(exitDoorPanel);
 
   const mullion = new THREE.Mesh(
-    new THREE.BoxGeometry(0.028, 1.64, 0.03),
+    new THREE.BoxGeometry(0.028, 1.64, 0.01),
     exitTrimMat,
   );
-  mullion.position.set(0, 1.18, 0.05);
+  mullion.position.set(0, 1.18, 0.07);
   exitGroup.add(mullion);
 
   // Long vertical brushed metal handle bar
@@ -805,34 +805,23 @@ export function buildShopFloor(
     diffuser.rotation.y = rotationY;
     group.add(diffuser);
 
-    // Realistic downward lighting (SpotLight instead of PointLight)
-    // This physically prevents light from shining *up* onto the ceiling
-    // Creating a proper soft downward throw
-    const light = new THREE.SpotLight(0xffe6c2, 1.0);
-    light.angle = Math.PI / 2.2; // Very wide cone, ~160 deg total spread
-    light.penumbra = 1.0; // Perfect soft edge
-    light.decay = 2;
-    light.distance = 0;
-    light.power = 850;
-    light.position.set(x, 3.8, z);
-    
-    const target = new THREE.Object3D();
-    target.position.set(x, 0, z); // Target points straight down to floor
-    group.add(target);
-    light.target = target;
+    // Warm, cozy realistic lighting without sharp spot splatters
+    const light = new THREE.PointLight(0xffe2c1, 1.0, 7.5, 2);
+    light.power = 650;
+    light.position.set(x, 3.75, z);
     
     group.add(light);
   };
 
   const fixturePositions: Array<[number, number, number]> = [
-    [-4.8, -2.65, Math.PI / 2],
-    [-1.6, -2.65, Math.PI / 2],
-    [1.6, -2.65, Math.PI / 2],
-    [4.8, -2.65, Math.PI / 2],
-    [-4.8, 1.05, Math.PI / 2],
-    [-1.6, 1.05, Math.PI / 2],
-    [1.6, 1.05, Math.PI / 2],
-    [4.95, 2.45, Math.PI / 2],
+    [-4.8, -2.65, 0],
+    [-1.6, -2.65, 0],
+    [1.6, -2.65, 0],
+    [4.8, -2.65, 0],
+    [-4.8, 1.05, 0],
+    [-1.6, 1.05, 0],
+    [1.6, 1.05, 0],
+    [4.95, 2.45, 0],
   ];
   fixturePositions.forEach(([x, z, rot]) => {
     addCeilingFixture(x, z, 2.4, rot);
@@ -848,23 +837,7 @@ export function buildShopFloor(
   bounceB.position.set(4.3, 2.18, -1.3);
   group.add(bounceB);
 
-  const doorSconceCore = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.038, 0.038, 0.14, 14),
-    new THREE.MeshStandardMaterial({
-      color: 0xffe2c1,
-      emissive: 0xffc58f,
-      emissiveIntensity: 0.32,
-      roughness: 0.32,
-      metalness: 0.08,
-    }),
-  );
-  doorSconceCore.position.set(0, 2.54, HALF_D - 0.22);
-  group.add(doorSconceCore);
-
-  const doorSconceLight = new THREE.PointLight(0xffc48d, 1.0, 0, 2);
-  doorSconceLight.power = 590;
-  doorSconceLight.position.set(0, 2.42, HALF_D - 0.34);
-  group.add(doorSconceLight);
+  // Exit door sconce light removed as requested
 
   // ————————————————————————————————
   // Secret Interactables
