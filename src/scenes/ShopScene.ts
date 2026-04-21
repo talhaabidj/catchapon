@@ -43,7 +43,7 @@ import {
   triggerMachineCleanPulse,
   triggerMachinePowerPulse,
 } from '../world/machines/CapsuleMachine.js';
-import { MudSplashTaskSystem } from './shop/MudSplashTaskSystem.js';
+import { MudSplashTaskSystem } from './shop/MudSplashTaskSystem.ts';
 import { reduceBlockingIssuesToBudget } from './shop/ServiceStateBalancer.js';
 import { getNightlyBlockingIssueBudget } from './shop/BlockingIssueBudget.js';
 import {
@@ -76,7 +76,6 @@ import {
 } from '../core/InteractionTags.js';
 import {
   ARCADE_STATUS_TEXT,
-  getLowStockPrompt,
 } from './shop/ArcadeStatusText.js';
 
 // World
@@ -101,6 +100,7 @@ import {
   hideEndingSoon,
   showToast,
 } from '../ui/shopHUD.js';
+import type { ShopPromptAction } from '../ui/shopHUD.js';
 import {
   mountPauseUI,
   unmountPauseUI,
@@ -153,6 +153,7 @@ export class ShopScene implements Scene {
   private isPullInProgress = false;
   private isReturningHome = false;
   private hasCapsuleRefill = false;
+  private hasTokenRefill = false;
 
   // Screen shake
   private shakeIntensity = 0;
@@ -179,7 +180,6 @@ export class ShopScene implements Scene {
       this.game.input,
     );
     this.pauseController = new PauseSceneController({
-      canvas: this.game.canvas,
       controller: this.controller,
       setPaused: (paused) => {
         this.game.isPaused = paused;
@@ -201,6 +201,7 @@ export class ShopScene implements Scene {
 
   init() {
     this.hasCapsuleRefill = false;
+    this.hasTokenRefill = false;
 
     // —— Get progression data for this night ——
     const prog = this.progression.getCurrentProgression();
@@ -213,6 +214,10 @@ export class ShopScene implements Scene {
     const machineIds = this.availableMachines.map((m) => m.id);
     this.maintenance.initializeForNight(machineIds, prog.difficultyModifier);
     this.tokenStationState = createTokenStationState(prog.difficultyModifier);
+    this.tokenStationState.isPowered = true;
+    if (this.tokenStationState.stockLevel === 'empty') {
+      this.tokenStationState.stockLevel = 'low';
+    }
 
     // —— Generate tasks ——
     const [minTasks, maxTasks] = prog.taskCount;
@@ -304,12 +309,13 @@ export class ShopScene implements Scene {
 
     // —— Pause Menu Toggle ——
     if (isPauseMenuVisible()) {
+      if (input.isMenuPressed()) {
+        this.pauseController.requestResumeFromToggle();
+      }
       this.pauseController.handlePausedFrame();
       this.game.renderer.render(this.scene3d, this.camera);
       return;
     }
-
-    this.pauseController.finishResumeIfPointerLocked();
 
     // —— Night end overlay active ——
     if (isNightEndVisible()) {
@@ -406,8 +412,8 @@ export class ShopScene implements Scene {
     if (target && !this.nightEnded) {
       // Build contextual prompt
       const prompt = this.getContextualPrompt(target.type, target.prompt, target.object);
-      const promptKey = this.getContextualActionKey(target.type, target.object);
-      showShopPrompt(prompt, promptKey);
+      const promptActions = this.getContextualActions(target.type, target.object);
+      showShopPrompt({ text: prompt, actions: promptActions });
 
       const restockHandled = input.isRestockPressed()
         ? this.handleRestockInput(target.type, target.object)
@@ -501,7 +507,20 @@ export class ShopScene implements Scene {
           hasCapsuleRefill: this.hasCapsuleRefill,
           tasks: this.tasks.getTasks(),
         });
-        if (issuePrompt) return issuePrompt;
+        if (issuePrompt) {
+          const isLowStock = machineState?.stockLevel === 'low';
+          if (isLowStock) {
+            if (!this.economy.canPull()) {
+              return this.hasCapsuleRefill
+                ? 'LOW STOCK - Need tokens to pull'
+                : 'LOW STOCK - Need tokens or refill canister';
+            }
+            return this.hasCapsuleRefill
+              ? 'LOW STOCK - Pull or restock'
+              : 'LOW STOCK - Pull now or grab refill canister';
+          }
+          return issuePrompt;
+        }
       }
 
       if (!this.economy.canPull()) return `${defaultPrompt} (need tokens)`;
@@ -509,19 +528,24 @@ export class ShopScene implements Scene {
     }
     if (type === 'storage-crate') {
       if (this.hasCapsuleRefill) return 'Refill canister ready — service restock task';
-      if (this.hasAnyRestockNeed()) return 'Take refill canister from crate';
+      if (this.hasAnyCapsuleRestockNeed()) return 'Take refill canister from crate';
       return 'Storage crate';
+    }
+    if (type === 'token-crate') {
+      if (this.hasTokenRefill) return 'Token refill pack ready — service terminal';
+      if (this.hasAnyTokenRestockNeed()) return 'Take token refill pack';
+      return 'Token refill crate';
     }
     if (type === 'token-station') {
       if (!this.tokenStationState.isPowered) return ARCADE_STATUS_TEXT.outOfOrderRequiresPower;
       if (this.tokenStationState.isJammed) return ARCADE_STATUS_TEXT.outOfOrderJammed;
       if (this.tokenStationState.stockLevel === 'empty') {
-        if (this.hasCapsuleRefill) return 'OUT OF ORDER - PRESS R TO RESTOCK';
+        if (this.hasTokenRefill) return 'OUT OF ORDER - Ready to restock';
         return ARCADE_STATUS_TEXT.outOfOrderRestockNeeded;
       }
       if (this.tokenStationState.stockLevel === 'low') {
-        if (this.hasCapsuleRefill) return 'LOW STOCK - PRESS R TO RESTOCK';
-        return getLowStockPrompt(this.hasCapsuleRefill);
+        if (this.hasTokenRefill) return 'LOW STOCK - Buy now or restock';
+        return 'LOW STOCK - Buy now or get token refill pack';
       }
       if (this.tokenStationState.cleanliness === 'dirty') return ARCADE_STATUS_TEXT.serviceCleanScreen;
       return ARCADE_STATUS_TEXT.buyTokens;
@@ -540,25 +564,67 @@ export class ShopScene implements Scene {
     return defaultPrompt;
   }
 
-  private getContextualActionKey(type: string, object?: THREE.Object3D): 'E' | 'R' {
+  private getContextualActions(type: string, object?: THREE.Object3D): ShopPromptAction[] {
     if (type === 'machine') {
       const machineId = object ? getMachineId(object) : undefined;
-      if (!machineId) return 'E';
+      if (!machineId) return [{ key: 'E', label: 'Interact' }];
 
       const state = this.maintenance.getState(machineId);
-      const hasRestockNeed = (state?.stockLevel !== 'ok') || this.hasPendingRestockTask(machineId);
-      if (hasRestockNeed) return 'R';
-      return 'E';
+      const stock = state?.stockLevel ?? 'ok';
+      const needsService =
+        (state?.cleanliness === 'dirty') ||
+        (state?.isJammed === true) ||
+        (state?.isPowered === false);
+      if (needsService) return [{ key: 'E', label: 'Service' }];
+
+      const hasRestockNeed = (stock !== 'ok') || this.hasPendingRestockTask(machineId);
+      if (!hasRestockNeed) return [{ key: 'E', label: 'Pull' }];
+      if (stock === 'empty') return [{ key: 'R', label: 'Restock' }];
+      if (stock === 'low') {
+        return [
+          { key: 'E', label: 'Pull' },
+          { key: 'R', label: 'Restock' },
+        ];
+      }
+      return [{ key: 'R', label: 'Restock' }];
+    }
+
+    if (type === 'token-crate') {
+      return [{ key: 'E', label: 'Take Pack' }];
+    }
+
+    if (type === 'storage-crate') {
+      return [{ key: 'E', label: 'Take Refill' }];
     }
 
     if (type === 'token-station') {
+      const stock = this.tokenStationState.stockLevel;
+      const needsService =
+        !this.tokenStationState.isPowered ||
+        this.tokenStationState.isJammed ||
+        this.tokenStationState.cleanliness === 'dirty';
+      if (needsService) return [{ key: 'E', label: 'Service' }];
+
       const hasRestockNeed =
-        this.tokenStationState.stockLevel !== 'ok' ||
+        stock !== 'ok' ||
         this.hasPendingRestockTask('token-station');
-      return hasRestockNeed ? 'R' : 'E';
+      if (!hasRestockNeed) return [{ key: 'E', label: 'Buy' }];
+      if (stock === 'empty') return [{ key: 'R', label: 'Restock' }];
+      if (stock === 'low') {
+        return [
+          { key: 'E', label: 'Buy' },
+          { key: 'R', label: 'Restock' },
+        ];
+      }
+      return [{ key: 'R', label: 'Restock' }];
     }
 
-    return 'E';
+    if (type === 'floor-spot') return [{ key: 'E', label: 'Mop' }];
+    if (type === 'wondertrade') return [{ key: 'E', label: 'Trade' }];
+    if (type === 'shop-exit') return [{ key: 'E', label: 'End Shift' }];
+    if (type === 'secret') return [{ key: 'E', label: 'Inspect' }];
+
+    return [{ key: 'E', label: 'Interact' }];
   }
 
   private handleRestockInput(type: string, object: THREE.Object3D): boolean {
@@ -603,8 +669,8 @@ export class ShopScene implements Scene {
         this.hasPendingRestockTask('token-station');
       if (!hasRestockNeed) return false;
 
-      if (!this.hasCapsuleRefill) {
-        showToast('Pick up refill canister from storage crate first', 1800);
+      if (!this.hasTokenRefill) {
+        showToast('Pick up token refill pack from token crate first', 1800);
         return true;
       }
 
@@ -618,7 +684,7 @@ export class ShopScene implements Scene {
       }
 
       this.tokenStationState.stockLevel = 'ok';
-      this.hasCapsuleRefill = false;
+      this.hasTokenRefill = false;
       const pulse = this.tokenStationGroup?.userData['pulseGlow'] as (() => void) | undefined;
       pulse?.();
       this.updateTokenStationDisplay();
@@ -639,14 +705,17 @@ export class ShopScene implements Scene {
         const state = this.maintenance.getState(machineId);
         const stockLevel = state?.stockLevel ?? 'ok';
 
-        if (stockLevel === 'empty' && this.hasPendingRestockTask(machineId) && !this.hasCapsuleRefill) {
-          showToast('Pick up capsules from the storage crate first', 1800);
+        if (stockLevel === 'empty') {
+          if (!this.hasCapsuleRefill) {
+            showToast('Pick up capsules from the storage crate first', 1800);
+          } else {
+            showToast('Machine empty - press R to restock', 1500);
+          }
           return;
         }
 
-        if (this.hasCapsuleRefill && stockLevel !== 'ok') {
-          showToast('Press R to restock machine', 1500);
-          return;
+        if (stockLevel === 'low' && this.hasCapsuleRefill) {
+          showToast('LOW STOCK - Press R to restock or E to pull', 1400);
         }
 
         if (this.tryCompleteNearbyTask(machineId, 'exclude')) {
@@ -661,15 +730,17 @@ export class ShopScene implements Scene {
       case 'storage-crate':
         this.handleStorageCrate();
         break;
+      case 'token-crate':
+        this.handleTokenCrate();
+        break;
       case 'token-station':
-        if (this.tokenStationState.stockLevel === 'empty' && !this.hasCapsuleRefill) {
-          showToast('Pick up refill canister from storage crate first', 1800);
+        if (this.tokenStationState.stockLevel === 'empty' && !this.hasTokenRefill) {
+          showToast('Pick up token refill pack from token crate first', 1800);
           return;
         }
 
-        if (this.hasCapsuleRefill && this.tokenStationState.stockLevel !== 'ok') {
-          showToast('Press R to restock terminal', 1500);
-          return;
+        if (this.tokenStationState.stockLevel === 'low' && this.hasTokenRefill) {
+          showToast('LOW STOCK - Press R to restock or E to buy tokens', 1400);
         }
 
         if (this.tryCompleteNearbyTask('token-station', 'exclude')) {
@@ -718,7 +789,7 @@ export class ShopScene implements Scene {
     gameAudio.play('crank');
     
     // Fake crank anticipation UI: show "..." text on machine?
-    showShopPrompt(`Cranking...`);
+    showShopPrompt({ text: 'Cranking...', actions: [] });
 
     setTimeout(() => {
       hideShopPrompt();
@@ -812,13 +883,12 @@ export class ShopScene implements Scene {
 
   private updateTokenStationDisplay() {
     const setStatus = this.tokenStationGroup?.userData['setStatus'] as
-      | ((status: 'ready' | 'out_of_stock' | 'no_power' | 'jammed' | 'dirty') => void)
+      | ((status: 'ready' | 'low_stock' | 'out_of_stock' | 'no_power' | 'jammed' | 'dirty') => void)
       | undefined;
     if (!setStatus) return;
 
     if (!this.tokenStationState.isPowered) {
-      setStatus('no_power');
-      return;
+      this.tokenStationState.isPowered = true;
     }
     if (this.tokenStationState.isJammed) {
       setStatus('jammed');
@@ -826,6 +896,10 @@ export class ShopScene implements Scene {
     }
     if (this.tokenStationState.stockLevel === 'empty') {
       setStatus('out_of_stock');
+      return;
+    }
+    if (this.tokenStationState.stockLevel === 'low') {
+      setStatus('low_stock');
       return;
     }
     if (this.tokenStationState.cleanliness === 'dirty') {
@@ -852,7 +926,7 @@ export class ShopScene implements Scene {
   }
 
   private handleStorageCrate() {
-    if (!this.hasAnyRestockNeed()) {
+    if (!this.hasAnyCapsuleRestockNeed()) {
       gameAudio.play('error');
       showToast('No restock task pending right now', 1500);
       return;
@@ -869,12 +943,57 @@ export class ShopScene implements Scene {
     showToast('Picked up refill canister from storage crate', 1600);
   }
 
-  private hasAnyRestockNeed(): boolean {
+  private handleTokenCrate() {
+    if (!this.hasAnyTokenRestockNeed()) {
+      gameAudio.play('error');
+      showToast('Token station does not need refills right now', 1500);
+      return;
+    }
+
+    if (this.hasTokenRefill) {
+      gameAudio.play('error');
+      showToast('Already carrying a token refill pack', 1300);
+      return;
+    }
+
+    this.hasTokenRefill = true;
+    gameAudio.play('ui');
+    showToast('Picked up token refill pack', 1600);
+  }
+
+  private hasAnyCapsuleRestockNeed(): boolean {
     return hasAnyRestockNeedInWorld(
-      this.hasPendingRestockTask(),
-      this.tokenStationState.stockLevel,
+      this.hasPendingCapsuleRestockTask(),
       this.maintenance.getAllStates(),
     );
+  }
+
+  private hasAnyTokenRestockNeed(): boolean {
+    return (
+      this.hasPendingTokenRestockTask() ||
+      this.tokenStationState.stockLevel === 'low' ||
+      this.tokenStationState.stockLevel === 'empty'
+    );
+  }
+
+  private hasPendingCapsuleRestockTask(): boolean {
+    return this.tasks.getTasks().some((task) => {
+      if (task.isCompleted) return false;
+      if (task.targetId === 'token-station') return false;
+
+      const template = TASK_TEMPLATES.find((t) => t.id === task.templateId);
+      return template?.type === 'restock';
+    });
+  }
+
+  private hasPendingTokenRestockTask(): boolean {
+    return this.tasks.getTasks().some((task) => {
+      if (task.isCompleted) return false;
+      if (task.targetId !== 'token-station') return false;
+
+      const template = TASK_TEMPLATES.find((t) => t.id === task.templateId);
+      return template?.type === 'restock';
+    });
   }
 
   private handleFloorSpotMop(object: THREE.Object3D) {
@@ -978,11 +1097,18 @@ export class ShopScene implements Scene {
 
       if (task.targetId !== targetId) continue;
 
-      if (template.type === 'restock' && !this.hasCapsuleRefill) {
+      const isTokenStationTask = targetId === 'token-station';
+      const hasRefill = isTokenStationTask ? this.hasTokenRefill : this.hasCapsuleRefill;
+      if (template.type === 'restock' && !hasRefill) {
         const outOfStock = targetState?.stockLevel === 'empty';
         if (outOfStock) {
           gameAudio.play('error');
-          showToast('Get refill canister from the storage crate first', 1600);
+          showToast(
+            isTokenStationTask
+              ? 'Get token refill pack from token crate first'
+              : 'Get refill canister from the storage crate first',
+            1600,
+          );
           return false;
         }
         // Low-stock tasks should not block normal machine pulls.
@@ -1016,7 +1142,7 @@ export class ShopScene implements Scene {
           } else if (template.type === 'restock') {
             if (isTokenStation) {
               this.tokenStationState.stockLevel = 'ok';
-              this.hasCapsuleRefill = false;
+              this.hasTokenRefill = false;
               const pulse = this.tokenStationGroup?.userData['pulseGlow'] as (() => void) | undefined;
               pulse?.();
             } else if (this.maintenance.restockMachine(targetId)) {
@@ -1086,7 +1212,7 @@ export class ShopScene implements Scene {
 
     this.isPullInProgress = true;
     gameAudio.play('crank');
-    showShopPrompt('Trading...');
+    showShopPrompt({ text: 'Trading...', actions: [] });
 
     setTimeout(() => {
       hideShopPrompt();
@@ -1204,7 +1330,6 @@ export class ShopScene implements Scene {
     this.isReturningHome = true;
 
     this.controller.setEnabled(false);
-    this.pauseController.cancelResumeFlow();
 
     // Save game state
     const gameState = this.buildGameState();
@@ -1246,6 +1371,8 @@ export class ShopScene implements Scene {
       const existing = group.getObjectByName('task-indicator');
       existing?.removeFromParent();
     });
+    const tokenMarker = this.tokenStationGroup?.getObjectByName('task-indicator');
+    tokenMarker?.removeFromParent();
 
     const pendingMachineTasks = this.tasks.getTasks().filter((t) => {
       if (t.isCompleted) return false;
@@ -1254,7 +1381,8 @@ export class ShopScene implements Scene {
     });
 
     for (const task of pendingMachineTasks) {
-      const machine = this.machineGroups.get(task.targetId);
+      const machine = this.machineGroups.get(task.targetId)
+        ?? (task.targetId === 'token-station' ? this.tokenStationGroup ?? undefined : undefined);
       if (!machine) continue;
 
       const template = TASK_TEMPLATES.find((tt) => tt.id === task.templateId);
@@ -1269,35 +1397,75 @@ export class ShopScene implements Scene {
       const marker = new THREE.Group();
       marker.name = 'task-indicator';
 
-      const orb = new THREE.Mesh(
-        new THREE.SphereGeometry(0.065, 12, 10),
-        new THREE.MeshStandardMaterial({
-          color,
-          emissive: color,
-          emissiveIntensity: 0.55,
-          roughness: 0.3,
-          metalness: 0.05,
+      const glowTex = this.createMarkerGlowTexture(color);
+      const floorGlow = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.36, 0.36),
+        new THREE.MeshBasicMaterial({
+          map: glowTex,
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          opacity: 0.58,
         }),
       );
-      orb.position.set(0, 2.16, 0);
-      marker.add(orb);
+      floorGlow.rotation.x = -Math.PI / 2;
+      floorGlow.position.set(0, 0.05, 0);
+      marker.add(floorGlow);
 
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.09, 0.012, 8, 18),
+      const beacon = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.05, 0),
         new THREE.MeshStandardMaterial({
-          color,
+          color: 0xf8fcff,
           emissive: color,
-          emissiveIntensity: 0.35,
-          roughness: 0.45,
-          metalness: 0.1,
+          emissiveIntensity: 0.88,
+          roughness: 0.22,
+          metalness: 0.12,
         }),
       );
-      ring.rotation.x = Math.PI / 2;
-      ring.position.set(0, 2.09, 0);
-      marker.add(ring);
+      beacon.position.set(0, 2.14, 0);
+      marker.add(beacon);
+
+      const stem = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.01, 0.012, 0.12, 8),
+        new THREE.MeshStandardMaterial({
+          color: 0xd7e9ff,
+          emissive: color,
+          emissiveIntensity: 0.45,
+          roughness: 0.35,
+          metalness: 0.18,
+        }),
+      );
+      stem.position.set(0, 2.06, 0);
+      marker.add(stem);
 
       machine.add(marker);
     }
+  }
+
+  private createMarkerGlowTexture(colorHex: number): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const color = new THREE.Color(colorHex);
+      const r = Math.round(color.r * 255);
+      const g = Math.round(color.g * 255);
+      const b = Math.round(color.b * 255);
+
+      const grad = ctx.createRadialGradient(64, 64, 6, 64, 64, 56);
+      grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.9)`);
+      grad.addColorStop(0.48, `rgba(${r}, ${g}, ${b}, 0.46)`);
+      grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    return tex;
   }
 
   private updateHUD() {
@@ -1321,9 +1489,49 @@ export class ShopScene implements Scene {
     const pos = this.camera.position;
     const playerRadius = 0.5;
 
-    // Outer walls check
+    // Storeroom geometry constants (must match ShopFloor.ts)
+    const STORE_WIDTH = 4.0;
+    const STORE_DEPTH = 3.5;
+    const ARCHWAY_WIDTH = 2.4;
+    const ARCHWAY_CENTER_X = SHOP_HALF_W - STORE_WIDTH / 2; // 5
+    const STORE_LEFT_X = SHOP_HALF_W - STORE_WIDTH; // 3
+    const STORE_BACK_Z = -SHOP_HALF_D - STORE_DEPTH; // -9.5
+
+    // Check if player is within the storeroom's X range
+    const inStoreroomXRange =
+      pos.x > STORE_LEFT_X + playerRadius &&
+      pos.x < SHOP_HALF_W - playerRadius;
+    // Check if player is within the archway opening's X range
+    const inArchwayXRange =
+      pos.x > ARCHWAY_CENTER_X - ARCHWAY_WIDTH / 2 + playerRadius &&
+      pos.x < ARCHWAY_CENTER_X + ARCHWAY_WIDTH / 2 - playerRadius;
+
+    // X clamp: always within main shop width
     pos.x = Math.max(-SHOP_HALF_W + playerRadius, Math.min(SHOP_HALF_W - playerRadius, pos.x));
-    pos.z = Math.max(-SHOP_HALF_D + playerRadius, Math.min(SHOP_HALF_D - playerRadius, pos.z));
+
+    // Z clamp: depends on whether the player is in/near the storeroom
+    if (pos.z < -SHOP_HALF_D + playerRadius) {
+      // Player is behind the back wall line — only allowed if in storeroom bounds
+      if (inStoreroomXRange) {
+        // Clamp within storeroom
+        pos.z = Math.max(STORE_BACK_Z + playerRadius, pos.z);
+        pos.x = Math.max(STORE_LEFT_X + playerRadius, Math.min(SHOP_HALF_W - playerRadius, pos.x));
+      } else {
+        // Push back to main shop
+        pos.z = -SHOP_HALF_D + playerRadius;
+      }
+    } else {
+      // Normal main shop Z clamp
+      pos.z = Math.min(SHOP_HALF_D - playerRadius, pos.z);
+    }
+
+    // At the back wall line, only allow passage through the archway
+    if (pos.z < -SHOP_HALF_D + playerRadius + 0.15 && pos.z > -SHOP_HALF_D - 0.15) {
+      if (!inArchwayXRange) {
+        pos.z = Math.max(-SHOP_HALF_D + playerRadius, pos.z);
+      }
+    }
+
     pos.y = PLAYER_HEIGHT;
 
     // Collision against all major shop objects from world colliders.

@@ -4,19 +4,31 @@ export function createTokenStationState(
   difficultyModifier: number,
   rng: () => number = Math.random,
 ): MachineState {
-  const dirtyChance = 0.18 * difficultyModifier;
-  const lowStockChance = 0.16 * difficultyModifier;
-  const jamChance = 0.06 * difficultyModifier;
-  const unpoweredChance = 0.04 * difficultyModifier;
+  const dirtyChance = 0.24 * difficultyModifier;
+  const lowStockChance = 0.14 * difficultyModifier;
+  const jamChance = 0.035 * difficultyModifier;
+
+  let cleanliness: MachineState['cleanliness'] = rng() < dirtyChance ? 'dirty' : 'clean';
+  let isJammed = rng() < jamChance;
+
+  // Avoid stacked terminal blockers; keep one issue type readable at a time.
+  if (cleanliness === 'dirty' && isJammed) {
+    if (rng() < 0.7) {
+      isJammed = false;
+    } else {
+      cleanliness = 'clean';
+    }
+  }
+
+  const stockLevel: MachineState['stockLevel'] = rng() < lowStockChance ? 'low' : 'ok';
 
   return {
     machineId: 'token-station',
-    cleanliness: rng() < dirtyChance ? 'dirty' : 'clean',
-    stockLevel: rng() < lowStockChance
-      ? (rng() < 0.2 ? 'empty' : 'low')
-      : 'ok',
-    isJammed: rng() < jamChance,
-    isPowered: rng() >= unpoweredChance,
+    cleanliness,
+    stockLevel,
+    isJammed,
+    // Token station should always have power in this service loop variant.
+    isPowered: true,
   };
 }
 

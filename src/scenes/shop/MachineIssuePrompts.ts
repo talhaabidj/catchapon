@@ -47,8 +47,8 @@ export function getMachineIssuePrompt(input: MachineIssuePromptInput): string | 
     const isFullyOut = input.machineState?.stockLevel === 'empty';
 
     if (input.hasCapsuleRefill) {
-      if (isFullyOut) return 'OUT OF ORDER - PRESS R TO RESTOCK';
-      return 'LOW STOCK - PRESS R TO RESTOCK';
+      if (isFullyOut) return 'OUT OF ORDER - READY TO RESTOCK';
+      return 'LOW STOCK - RESTOCK READY';
     }
     if (isFullyOut) return ARCADE_STATUS_TEXT.outOfOrderRestockNeeded;
     return ARCADE_STATUS_TEXT.lowStockGetRefill;

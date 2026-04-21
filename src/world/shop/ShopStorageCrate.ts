@@ -13,7 +13,7 @@ export function buildStorageCrate(): BuiltStorageCrate {
     type: 'storage-crate',
     prompt: 'Take refill canister',
   });
-  crate.position.set(5.5, 0, -4.5);
+  crate.position.set(5, 0, -8);
 
   const palletMat = new THREE.MeshStandardMaterial({
     color: 0x2a2119,
@@ -166,14 +166,14 @@ export function buildStorageCrate(): BuiltStorageCrate {
         roughness: 0.45,
       }),
     );
-    spill.position.set(5.2 + Math.random() * 0.65, 0.04, -4.22 + Math.random() * 0.42);
+    spill.position.set(4.7 + Math.random() * 0.65, 0.04, -7.72 + Math.random() * 0.42);
     spillCapsules.push(spill);
   }
 
   return {
     group: crate,
     interactable: crate,
-    collider: { name: 'storage-crate', x: 5.5, z: -4.5, halfW: 0.5, halfD: 0.39 },
+    collider: { name: 'storage-crate', x: 5, z: -8, halfW: 0.5, halfD: 0.39 },
     spillCapsules,
   };
 }

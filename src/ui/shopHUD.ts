@@ -7,6 +7,16 @@
 const SHOP_HUD_ID = 'shop-hud';
 let pullDismissHandler: ((e: KeyboardEvent) => void) | null = null;
 
+export interface ShopPromptAction {
+  key: string;
+  label: string;
+}
+
+export interface ShopPromptPayload {
+  text: string;
+  actions?: readonly ShopPromptAction[];
+}
+
 export function mountShopHUD() {
   const uiRoot = document.getElementById('ui-root');
   if (!uiRoot) return;
@@ -34,7 +44,8 @@ export function mountShopHUD() {
     </div>
 
     <div class="interact-prompt" id="shop-interact-prompt">
-      <kbd id="shop-interact-key">E</kbd> <span id="shop-interact-text">Interact</span>
+      <div class="shop-prompt-actions" id="shop-prompt-actions"></div>
+      <span class="shop-prompt-detail" id="shop-interact-text">Interact</span>
     </div>
 
     <div class="shop-pull-result hidden" id="pull-result">
@@ -137,13 +148,47 @@ export function renderTaskList(
 
 // —— Interact prompt ——
 
-export function showShopPrompt(text: string, keyLabel = 'E') {
+export function showShopPrompt(prompt: string | ShopPromptPayload, keyLabel = 'E') {
   const el = document.getElementById('shop-interact-prompt');
   const txt = document.getElementById('shop-interact-text');
-  const key = document.getElementById('shop-interact-key');
+  const actionsEl = document.getElementById('shop-prompt-actions');
+
+  const payload: ShopPromptPayload = typeof prompt === 'string'
+    ? {
+      text: prompt,
+      actions: keyLabel.trim().length > 0
+        ? [{ key: keyLabel, label: 'Interact' }]
+        : [],
+    }
+    : prompt;
+
+  const actions = payload.actions ?? [];
+
   if (el && txt) {
-    txt.textContent = text;
-    if (key) key.textContent = keyLabel;
+    txt.textContent = payload.text;
+    if (actionsEl) {
+      actionsEl.innerHTML = '';
+      actionsEl.classList.toggle('hidden', actions.length === 0);
+
+      actions.forEach((action) => {
+        const actionEl = document.createElement('div');
+        actionEl.className = 'shop-prompt-action';
+
+        const keyEl = document.createElement('kbd');
+        keyEl.className = 'shop-prompt-key';
+        keyEl.textContent = action.key;
+
+        const labelEl = document.createElement('span');
+        labelEl.className = 'shop-prompt-label';
+        labelEl.textContent = action.label;
+
+        actionEl.appendChild(keyEl);
+        actionEl.appendChild(labelEl);
+        actionsEl.appendChild(actionEl);
+      });
+    }
+
+    el.classList.toggle('has-multi-actions', actions.length > 1);
     el.classList.add('visible');
   }
   document.getElementById('shop-crosshair')?.classList.add('interact');

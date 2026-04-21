@@ -98,6 +98,7 @@ export type InteractType =
   | 'machine'
   | 'floor-spot'
   | 'storage-crate'
+  | 'token-crate'
   | 'token-station'
   | 'shop-exit'
   | 'wondertrade'

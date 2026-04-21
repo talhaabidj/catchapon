@@ -58,6 +58,59 @@
 }
 
 /* ————————————————————————————————
+   Shop Interact Prompt
+   ———————————————————————————————— */
+#shop-interact-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  min-width: 260px;
+}
+
+#shop-interact-prompt.has-multi-actions {
+  min-width: 340px;
+}
+
+.shop-prompt-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.shop-prompt-actions.hidden {
+  display: none;
+}
+
+.shop-prompt-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(145, 165, 227, 0.28);
+  background: rgba(16, 23, 40, 0.7);
+}
+
+.shop-prompt-key {
+  margin-right: 0;
+}
+
+.shop-prompt-label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #d9e3fb;
+}
+
+.shop-prompt-detail {
+  font-size: 13px;
+  color: #f2f5ff;
+}
+
+/* ————————————————————————————————
    Task Panel
    ———————————————————————————————— */
 .shop-task-panel {

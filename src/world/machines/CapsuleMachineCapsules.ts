@@ -4,6 +4,7 @@ export interface CapsuleData {
   pos: THREE.Vector3;
   rot: THREE.Euler;
   vel: THREE.Vector3;
+  settled: boolean;
 }
 
 export interface CapsuleVisualState {
@@ -14,6 +15,9 @@ export interface CapsuleVisualState {
 
 export const FULL_STOCK_CAPSULE_COUNT = 45;
 export const LOW_STOCK_CAPSULE_COUNT = 14;
+
+/** Velocity threshold below which a capsule on the floor is considered settled. */
+const SETTLE_THRESHOLD_SQ = 0.0005;
 
 function createCapsuleVisualState(
   spawnFromTop: boolean,
@@ -51,7 +55,7 @@ function createCapsuleVisualState(
         (rng() - 0.5) * 0.22,
       );
 
-      data.push({ pos, rot, vel });
+      data.push({ pos, rot, vel, settled: false });
 
       dummy.position.copy(pos);
       dummy.rotation.copy(rot);
@@ -84,7 +88,7 @@ function createCapsuleVisualState(
             (rng() - 0.5) * 0.2,
           );
 
-          data.push({ pos, rot, vel });
+          data.push({ pos, rot, vel, settled: false });
 
           dummy.position.copy(pos);
           dummy.rotation.copy(rot);
@@ -139,7 +143,6 @@ export function restockMachineCapsules(machine: THREE.Group) {
 export function animateMachineCapsules(
   machine: THREE.Group,
   time: number,
-  rng: () => number = Math.random,
 ): number {
   let dt = time - (machine.userData['lastTime'] || time);
   machine.userData['lastTime'] = time;
@@ -156,15 +159,11 @@ export function animateMachineCapsules(
   for (let i = 0; i < data.length; i += 1) {
     const capsule = data[i]!;
 
+    // Skip settled capsules entirely — big perf win for 45×N machines.
+    if (capsule.settled) continue;
+
     // Gravity.
     capsule.vel.y -= 1.8 * dt;
-
-    // Random subtle visual popcorn bounce so they look alive.
-    if (rng() < 0.005) {
-      capsule.vel.y += 0.3 + rng() * 0.3;
-      capsule.vel.x += (rng() - 0.5) * 0.4;
-      capsule.vel.z += (rng() - 0.5) * 0.4;
-    }
 
     capsule.pos.addScaledVector(capsule.vel, dt);
 
@@ -181,6 +180,19 @@ export function animateMachineCapsules(
     if (capsule.pos.x > 0.37) { capsule.pos.x = 0.37; capsule.vel.x *= -0.6; }
     if (capsule.pos.z < -0.32) { capsule.pos.z = -0.32; capsule.vel.z *= -0.6; }
     if (capsule.pos.z > 0.32) { capsule.pos.z = 0.32; capsule.vel.z *= -0.6; }
+
+    // Check if capsule has settled (on the floor and barely moving).
+    if (capsule.pos.y <= 1.106 && capsule.vel.lengthSq() < SETTLE_THRESHOLD_SQ) {
+      capsule.settled = true;
+      capsule.vel.set(0, 0, 0);
+      // Do one final matrix update to lock its resting position.
+      dummy.position.copy(capsule.pos);
+      dummy.rotation.copy(capsule.rot);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      needsMatrixUpdate = true;
+      continue;
+    }
 
     // Update matrix only when movement is meaningful.
     if (capsule.vel.lengthSq() > 0.001) {

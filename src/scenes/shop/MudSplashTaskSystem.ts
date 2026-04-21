@@ -6,11 +6,12 @@ import type { ShopCollider } from '../../world/ShopFloor.js';
 
 interface MudSpotState {
   mesh: THREE.Mesh;
-  variantIndex: number;
+  marker: THREE.Group;
   hitsRequired: number;
   hitsDone: number;
   rewardRemaining: number;
   timeRemaining: number;
+  isCompleted: boolean;
 }
 
 export interface MudMopResult {
@@ -21,40 +22,26 @@ export interface MudMopResult {
   timeCost: number;
 }
 
-const ATLAS_COLUMNS = 3;
-const ATLAS_ROWS = 2;
-const MUD_FLOOR_Y = 0.0012;
+const MUD_FLOOR_Y = 0.002;
 const SHOP_HALF_WIDTH = 7;
 const SHOP_HALF_DEPTH = 6;
 const WALL_CLEARANCE = 0.55;
 
 const AISLE_ZONES: Array<{ xMin: number; xMax: number; zMin: number; zMax: number }> = [
-  { xMin: -4.5, xMax: 4.5, zMin: -0.5, zMax: 3.8 },
-  { xMin: -6.0, xMax: -4.6, zMin: -3.8, zMax: 3.8 },
-  { xMin: 4.6, xMax: 6.0, zMin: -3.8, zMax: 3.2 },
-  { xMin: -2.3, xMax: 2.7, zMin: -5.0, zMax: -3.1 },
+  { xMin: -4.9, xMax: 4.9, zMin: -0.8, zMax: 4.0 },
+  { xMin: -6.2, xMax: -4.8, zMin: -4.1, zMax: 4.0 },
+  { xMin: 4.8, xMax: 6.2, zMin: -4.1, zMax: 3.4 },
+  { xMin: -2.8, xMax: 3.0, zMin: -5.1, zMax: -3.2 },
 ];
 
 export class MudSplashTaskSystem {
-  private mudAtlasTexture: THREE.Texture | null = null;
-  private atlasReady = false;
   private readonly mudSpots = new Map<string, MudSpotState>();
 
   constructor(
     private readonly scene3d: THREE.Scene,
     private readonly colliders: readonly ShopCollider[],
     private readonly rng: () => number = Math.random,
-  ) {
-    new THREE.TextureLoader().load(
-      '/textures/mudsplashes.png',
-      (texture) => {
-        texture.colorSpace = THREE.SRGBColorSpace;
-        this.mudAtlasTexture = texture;
-        this.atlasReady = true;
-        this.refreshSplashMaps();
-      },
-    );
-  }
+  ) {}
 
   spawn(tasks: readonly ActiveTask[], interactables: THREE.Object3D[]) {
     const floorTasks = tasks.filter((task) => {
@@ -64,8 +51,9 @@ export class MudSplashTaskSystem {
 
     floorTasks.forEach((task, idx) => {
       const pos = this.findValidMudSpot(idx);
-      const variant = Math.floor(this.rng() * (ATLAS_COLUMNS * ATLAS_ROWS));
-      const splash = this.createSingleLayerMudSplash(variant);
+      const variant = idx + Math.floor(this.rng() * 8);
+      const splash = this.createMudSplashMesh(variant);
+      const marker = this.createTaskMarker();
 
       splash.name = task.targetId;
       tagInteractable(splash, {
@@ -77,23 +65,27 @@ export class MudSplashTaskSystem {
       splash.position.set(pos.x, MUD_FLOOR_Y, pos.z);
       splash.rotation.y = this.rng() * Math.PI * 2;
 
+      marker.position.set(pos.x, 0.18, pos.z);
+
       this.scene3d.add(splash);
+      this.scene3d.add(marker);
       interactables.push(splash);
 
       this.mudSpots.set(task.targetId, {
         mesh: splash,
-        variantIndex: variant,
-        hitsRequired: 3 + Math.floor(this.rng() * 4), // 3-6 random scrubs
+        marker,
+        hitsRequired: 3 + Math.floor(this.rng() * 4),
         hitsDone: 0,
         rewardRemaining: -1,
         timeRemaining: -1,
+        isCompleted: false,
       });
     });
   }
 
   mop(targetId: string, baseReward: number, baseTime: number): MudMopResult | null {
     const spot = this.mudSpots.get(targetId);
-    if (!spot) return null;
+    if (!spot || spot.isCompleted) return null;
 
     if (spot.rewardRemaining < 0) {
       spot.rewardRemaining = Math.max(1, Math.floor(baseReward));
@@ -118,15 +110,22 @@ export class MudSplashTaskSystem {
     const material = spot.mesh.material as THREE.MeshStandardMaterial;
     const progress = spot.hitsDone / spot.hitsRequired;
 
-    // Fade and shrink footprint each scrub to imply the mud is being lifted.
-    material.opacity = Math.max(0.05, 0.88 - (progress * 0.8) + ((this.rng() - 0.5) * 0.03));
-    const footprintScale = Math.max(0.62, 1 - (progress * (0.26 + this.rng() * 0.08)));
-    spot.mesh.scale.set(footprintScale, footprintScale, 1);
+    // Shrink and flatten the mud as it gets scrubbed away.
+    const footprintScale = Math.max(0.58, 1 - (progress * (0.24 + this.rng() * 0.06)));
+    const thicknessScale = Math.max(0.45, 1 - progress * 0.62);
+    spot.mesh.scale.set(footprintScale, thicknessScale, footprintScale);
+    material.opacity = Math.max(0.06, 0.92 - progress * 0.82);
+
+    const setProgress = spot.marker.userData['setProgress'] as
+      | ((value: number) => void)
+      | undefined;
+    setProgress?.(progress);
 
     if (hitsLeft === 0) {
+      spot.isCompleted = true;
       spot.mesh.visible = false;
       spot.mesh.userData[INTERACTION_KEYS.interactable] = false;
-      this.mudSpots.delete(targetId);
+      spot.marker.visible = false;
     }
 
     return {
@@ -140,119 +139,150 @@ export class MudSplashTaskSystem {
 
   dispose() {
     this.mudSpots.forEach((spot) => {
-      const material = spot.mesh.material as THREE.MeshStandardMaterial;
-      material.map?.dispose();
-      material.dispose();
       spot.mesh.geometry.dispose();
+      (spot.mesh.material as THREE.Material).dispose();
+
+      spot.marker.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
     });
     this.mudSpots.clear();
-    this.mudAtlasTexture?.dispose();
-    this.mudAtlasTexture = null;
-    this.atlasReady = false;
   }
 
-  private createSingleLayerMudSplash(variantIndex: number): THREE.Mesh {
-    const map = this.createAtlasVariantTexture(variantIndex) ?? this.createFallbackTexture(variantIndex);
+  private createMudSplashMesh(variantIndex: number): THREE.Mesh {
+    const shape = this.createMudShape(variantIndex);
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.028,
+      steps: 1,
+      curveSegments: 20,
+      bevelEnabled: true,
+      bevelThickness: 0.006,
+      bevelSize: 0.012,
+      bevelSegments: 1,
+    });
+
+    // Shape is authored in XY; rotate so it lays on the XZ floor with real thickness.
+    geometry.rotateX(-Math.PI / 2);
+    geometry.translate(0, 0.002, 0);
+    geometry.computeVertexNormals();
+
+    const hue = 0.06 + (this.rng() * 0.02);
+    const sat = 0.46 + (this.rng() * 0.08);
+    const light = 0.16 + (this.rng() * 0.05);
 
     const material = new THREE.MeshStandardMaterial({
-      map,
-      bumpMap: map,
-      bumpScale: 0.018,
-      color: 0xffffff,
-      roughness: 0.84,
-      metalness: 0.01,
+      color: new THREE.Color().setHSL(hue, sat, light),
+      emissive: 0x1a120b,
+      emissiveIntensity: 0.22,
+      roughness: 0.93,
+      metalness: 0.02,
       transparent: true,
-      opacity: 0.88,
-      alphaTest: 0.08,
+      opacity: 0.92,
       depthWrite: false,
       polygonOffset: true,
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -2,
     });
 
-    const size = 1.02 + this.rng() * 0.44;
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), material);
-    mesh.rotation.x = -Math.PI / 2;
-    return mesh;
+    return new THREE.Mesh(geometry, material);
   }
 
-  private createAtlasVariantTexture(variantIndex: number): THREE.CanvasTexture | null {
-    if (!this.atlasReady || !this.mudAtlasTexture) return null;
+  private createMudShape(seed: number): THREE.Shape {
+    const shape = new THREE.Shape();
+    const points = 12 + (seed % 5);
+    const baseRadius = 0.34 + (seed % 4) * 0.04;
 
-    const sourceImage = this.mudAtlasTexture.image as
-      | HTMLImageElement
-      | HTMLCanvasElement
-      | ImageBitmap
-      | undefined;
+    for (let i = 0; i < points; i += 1) {
+      const angle = (i / points) * Math.PI * 2;
+      const pulse = 0.68 + (this.rng() * 0.58);
+      const arm = baseRadius * pulse * (i % 3 === 0 ? 1.14 : 1);
+      const x = Math.cos(angle) * arm;
+      const y = Math.sin(angle) * arm;
 
-    if (!sourceImage || !sourceImage.width || !sourceImage.height) return null;
-
-    const srcW = sourceImage.width / ATLAS_COLUMNS;
-    const srcH = sourceImage.height / ATLAS_ROWS;
-
-    const col = variantIndex % ATLAS_COLUMNS;
-    const row = Math.floor(variantIndex / ATLAS_COLUMNS);
-
-    const outSize = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = outSize;
-    canvas.height = outSize;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    ctx.clearRect(0, 0, outSize, outSize);
-    ctx.drawImage(
-      sourceImage,
-      col * srcW,
-      row * srcH,
-      srcW,
-      srcH,
-      0,
-      0,
-      outSize,
-      outSize,
-    );
-
-    const imageData = ctx.getImageData(0, 0, outSize, outSize);
-    const data = imageData.data;
-
-    // Key out light background + anti-aliased fringes and remap to muddy brown palette.
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i]!;
-      const g = data[i + 1]!;
-      const b = data[i + 2]!;
-      const a = data[i + 3]!;
-
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      const sat = max - min;
-      const avg = (r + g + b) / 3;
-
-      // Treat low-sat bright pixels as background, including anti-aliased outer fringe.
-      const brightFactor = Math.min(1, Math.max(0, (avg - 182) / 60));
-      const lowSatFactor = Math.min(1, Math.max(0, (44 - sat) / 44));
-      const keyStrength = brightFactor * lowSatFactor;
-
-      const alphaAfterKey = Math.floor(a * (1 - keyStrength));
-      if (alphaAfterKey <= 8) {
-        data[i + 3] = 0;
-        continue;
+      if (i === 0) {
+        shape.moveTo(x, y);
+      } else {
+        shape.lineTo(x, y);
       }
-
-      const tone = Math.pow(avg / 255, 1.06);
-
-      // Force splash palette into darker brown range (avoid orange paint look).
-      data[i] = Math.floor(34 + (68 * tone));
-      data[i + 1] = Math.floor(18 + (42 * tone));
-      data[i + 2] = Math.floor(10 + (26 * tone));
-
-      // Slight fringe softening where keying was strongest.
-      const fringeFade = 1 - (keyStrength * 0.35);
-      data[i + 3] = Math.floor(alphaAfterKey * fringeFade);
     }
+    shape.closePath();
 
-    ctx.putImageData(imageData, 0, 0);
+    return shape;
+  }
+
+  private createTaskMarker(): THREE.Group {
+    const marker = new THREE.Group();
+
+    const glowTex = this.createMarkerGlowTexture();
+    const glowMat = new THREE.MeshBasicMaterial({
+      map: glowTex,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      opacity: 0.76,
+    });
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), glowMat);
+    glow.rotation.x = -Math.PI / 2;
+    marker.add(glow);
+
+    const beaconMat = new THREE.MeshStandardMaterial({
+      color: 0xfff4b0,
+      emissive: 0xf2d65c,
+      emissiveIntensity: 0.95,
+      roughness: 0.24,
+      metalness: 0.14,
+      transparent: true,
+      opacity: 0.95,
+    });
+    const beacon = new THREE.Mesh(new THREE.OctahedronGeometry(0.03, 0), beaconMat);
+    beacon.position.y = 0.058;
+    marker.add(beacon);
+
+    const stemMat = new THREE.MeshStandardMaterial({
+      color: 0xffef9f,
+      emissive: 0xf2d65c,
+      emissiveIntensity: 0.45,
+      roughness: 0.32,
+      metalness: 0.12,
+      transparent: true,
+      opacity: 0.84,
+    });
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.07, 8), stemMat);
+    stem.position.y = 0.035;
+    marker.add(stem);
+
+    marker.userData['setProgress'] = (progress: number) => {
+      const fade = Math.max(0.08, 1 - progress);
+      glowMat.opacity = 0.12 + fade * 0.64;
+      beaconMat.opacity = 0.2 + fade * 0.74;
+      stemMat.opacity = 0.14 + fade * 0.6;
+      beaconMat.emissiveIntensity = 0.2 + fade * 0.75;
+      stemMat.emissiveIntensity = 0.12 + fade * 0.45;
+    };
+
+    return marker;
+  }
+
+  private createMarkerGlowTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 56);
+      grad.addColorStop(0, 'rgba(242, 214, 92, 0.95)');
+      grad.addColorStop(0.4, 'rgba(242, 214, 92, 0.46)');
+      grad.addColorStop(1, 'rgba(242, 214, 92, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+    }
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -260,69 +290,8 @@ export class MudSplashTaskSystem {
     return texture;
   }
 
-  private refreshSplashMaps() {
-    if (!this.atlasReady) return;
-
-    this.mudSpots.forEach((spot) => {
-      const atlasVariant = this.createAtlasVariantTexture(spot.variantIndex);
-      if (!atlasVariant) return;
-
-      const material = spot.mesh.material as THREE.MeshStandardMaterial;
-      if (material.bumpMap && material.bumpMap !== material.map) {
-        material.bumpMap.dispose();
-      }
-      material.map?.dispose();
-      material.map = atlasVariant;
-      material.bumpMap = atlasVariant;
-      material.needsUpdate = true;
-    });
-  }
-
-  private createFallbackTexture(variantIndex: number): THREE.CanvasTexture {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d');
-
-    if (ctx) {
-      const centerX = 128;
-      const centerY = 128;
-      const points = 10 + (variantIndex % 3) * 2;
-      const radius = 62 + (variantIndex % 4) * 6;
-
-      ctx.clearRect(0, 0, 256, 256);
-      ctx.fillStyle = '#6e3f1b';
-
-      ctx.beginPath();
-      for (let i = 0; i < points; i += 1) {
-        const angle = (i / points) * Math.PI * 2;
-        const arm = (0.7 + this.rng() * 0.65) * radius;
-        const x = centerX + (Math.cos(angle) * arm);
-        const y = centerY + (Math.sin(angle) * arm);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = '#5a3215';
-      ctx.beginPath();
-      ctx.ellipse(centerX - 14, centerY + 8, 36, 24, -0.4, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#8a5a2e';
-      ctx.beginPath();
-      ctx.ellipse(centerX + 16, centerY - 22, 18, 11, 0.1, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return texture;
-  }
-
   private findValidMudSpot(seedOffset: number): { x: number; z: number } {
-    const avoidRadius = 0.58;
+    const avoidRadius = 0.66;
     const existingMud = [...this.mudSpots.values()].map((entry) => ({
       x: entry.mesh.position.x,
       z: entry.mesh.position.z,
@@ -339,7 +308,6 @@ export class MudSplashTaskSystem {
       fallbackX = x;
       fallbackZ = z;
 
-      // Keep splashes off boundary walls so they sit naturally in walkable floor space.
       if (
         x <= -SHOP_HALF_WIDTH + WALL_CLEARANCE ||
         x >= SHOP_HALF_WIDTH - WALL_CLEARANCE ||
@@ -361,7 +329,7 @@ export class MudSplashTaskSystem {
       for (const mud of existingMud) {
         const dx = x - mud.x;
         const dz = z - mud.z;
-        if ((dx * dx) + (dz * dz) < 0.8 * 0.8) {
+        if ((dx * dx) + (dz * dz) < 1.0 * 1.0) {
           blocked = true;
           break;
         }

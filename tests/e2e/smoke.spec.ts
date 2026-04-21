@@ -86,7 +86,7 @@ test.describe('Catchapon Smoke Test', () => {
     });
   });
 
-  test('pause menu resumes from an explicit Resume action', async ({ page }) => {
+  test('pause menu toggles with ESC and supports Resume action', async ({ page }) => {
     const browserErrors: string[] = [];
     page.on('pageerror', (error) => {
       browserErrors.push(error.message);
@@ -110,12 +110,19 @@ test.describe('Catchapon Smoke Test', () => {
     await expect(pauseMenu).toHaveAttribute('data-open', 'true', {
       timeout: 5000,
     });
-    await expect(page.locator('#pause-status')).toContainText(/Click Resume Game/i);
+    await expect(page.locator('#pause-status')).toContainText(/ESC|Resume/i);
 
-    // Escape is not a valid transient activation for requestPointerLock, so it
-    // should not wedge the resume state while paused.
+    // ESC quick-resume should close the pause menu.
     await page.keyboard.press('Escape');
-    await expect(pauseMenu).toHaveAttribute('data-open', 'true');
+    await expect(pauseMenu).toHaveAttribute('data-open', 'false', {
+      timeout: 5000,
+    });
+
+    // Open pause again and ensure explicit Resume still works.
+    await page.keyboard.press('Escape');
+    await expect(pauseMenu).toHaveAttribute('data-open', 'true', {
+      timeout: 5000,
+    });
 
     await page.locator('#pause-resume-btn').click();
     await expect(pauseMenu).toHaveAttribute('data-open', 'false', {

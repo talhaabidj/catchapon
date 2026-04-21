@@ -8,12 +8,12 @@ import type { MachineDefinition } from './types.js';
 
 export const MACHINES: readonly MachineDefinition[] = [
   // ————————————————————————————————
-  // Row 1 (Z = -4): Set-specific machines
+  // Wall Row (Z = -4.2): Main set-specific machines
   // ————————————————————————————————
   {
     id: 'machine-neko',
     name: 'Pâtisserie Neko',
-    position: [-3, 0, -4],
+    position: [-4.8, 0, -4.2],
     rotation: 0,
     itemPoolIds: [
       'neko-macaron', 'neko-croissant', 'neko-donut',
@@ -28,7 +28,7 @@ export const MACHINES: readonly MachineDefinition[] = [
   {
     id: 'machine-train',
     name: 'Express Line Depot',
-    position: [-1, 0, -4],
+    position: [-2.4, 0, -4.2],
     rotation: 0,
     itemPoolIds: [
       'train-local', 'train-rapid', 'train-express',
@@ -43,7 +43,7 @@ export const MACHINES: readonly MachineDefinition[] = [
   {
     id: 'machine-moon',
     name: 'Lunar Greenhouse',
-    position: [1, 0, -4],
+    position: [0, 0, -4.2],
     rotation: 0,
     itemPoolIds: [
       'moon-fern', 'moon-moss', 'moon-lily',
@@ -58,7 +58,7 @@ export const MACHINES: readonly MachineDefinition[] = [
   {
     id: 'machine-pixel',
     name: 'Pixel Arcade',
-    position: [3, 0, -4],
+    position: [2.4, 0, -4.2],
     rotation: 0,
     itemPoolIds: [
       'pixel-knight', 'pixel-mage', 'pixel-thief',
@@ -72,12 +72,12 @@ export const MACHINES: readonly MachineDefinition[] = [
   },
 
   // ————————————————————————————————
-  // Row 2 (Z = 1): Mixed + specialty
+  // Center Row (Z = -1.6): Mixed + specialty
   // ————————————————————————————————
   {
     id: 'machine-mix-a',
     name: 'Lucky Mix α',
-    position: [-3, 0, 1],
+    position: [-4.8, 0, -1.6],
     rotation: 0,
     itemPoolIds: [
       'neko-macaron', 'train-local', 'moon-fern', 'pixel-knight',
@@ -92,7 +92,7 @@ export const MACHINES: readonly MachineDefinition[] = [
   {
     id: 'machine-mix-b',
     name: 'Lucky Mix β',
-    position: [-1, 0, 1],
+    position: [-2.4, 0, -1.6],
     rotation: 0,
     itemPoolIds: [
       'neko-eclair', 'train-limited', 'moon-vine', 'pixel-healer',
@@ -111,7 +111,7 @@ export const MACHINES: readonly MachineDefinition[] = [
   {
     id: 'machine-wondertrade',
     name: 'Wonder Exchange',
-    position: [1, 0, 1],
+    position: [0, 0, -1.6],
     rotation: 0,
     itemPoolIds: [], // Special: uses CollectionSystem for trade logic
     rarityWeights: {
@@ -132,7 +132,7 @@ export const MACHINES: readonly MachineDefinition[] = [
   {
     id: 'machine-hidden',
     name: '???',
-    position: [3, 0, 1],
+    position: [2.4, 0, -1.6],
     rotation: 0,
     itemPoolIds: [
       'pixel-dev', 'neko-souffle', 'train-phantom',

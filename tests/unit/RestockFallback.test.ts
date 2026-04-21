@@ -26,18 +26,18 @@ describe('Restock fallback', () => {
       makeState({ machineId: 'machine-train', stockLevel: 'ok' }),
     ];
 
-    const needsRestock = hasAnyRestockNeedInWorld(false, 'ok', machineStates);
+    const needsRestock = hasAnyRestockNeedInWorld(false, machineStates);
     expect(needsRestock).toBe(true);
   });
 
-  it('returns false when no tasks and no empty states exist', () => {
+  it('reports restock need when any machine is low stock', () => {
     const machineStates = [
       makeState({ machineId: 'machine-neko', stockLevel: 'ok' }),
       makeState({ machineId: 'machine-train', stockLevel: 'low' }),
     ];
 
-    const needsRestock = hasAnyRestockNeedInWorld(false, 'low', machineStates);
-    expect(needsRestock).toBe(false);
+    const needsRestock = hasAnyRestockNeedInWorld(false, machineStates);
+    expect(needsRestock).toBe(true);
   });
 
   it('allows emergency restock only for empty state with refill and no pending task', () => {
