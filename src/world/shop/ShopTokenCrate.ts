@@ -15,13 +15,6 @@ export function buildTokenCrate(): BuiltShopInteractable {
     roughness: 0.7,
     metalness: 0.2,
   });
-  const trimMat = new THREE.MeshStandardMaterial({
-    color: 0x84d8ff,
-    emissive: 0x5ec8ff,
-    emissiveIntensity: 0.32,
-    roughness: 0.42,
-    metalness: 0.28,
-  });
   const innerMat = new THREE.MeshStandardMaterial({
     color: 0x131c2d,
     roughness: 0.9,
@@ -35,13 +28,7 @@ export function buildTokenCrate(): BuiltShopInteractable {
   lip.position.set(0, 0.5, 0);
   crate.add(lip);
 
-  const stripeFront = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.08, 0.02), trimMat);
-  stripeFront.position.set(0, 0.29, 0.285);
-  crate.add(stripeFront);
 
-  const stripeTop = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.02, 0.5), trimMat);
-  stripeTop.position.set(0, 0.52, 0);
-  crate.add(stripeTop);
 
   const labelCanvas = document.createElement('canvas');
   labelCanvas.width = 512;

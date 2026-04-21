@@ -8,7 +8,8 @@ export interface CapsuleData {
 }
 
 export interface CapsuleVisualState {
-  mesh: THREE.InstancedMesh;
+  meshTop: THREE.InstancedMesh;
+  meshBottom: THREE.InstancedMesh;
   data: CapsuleData[];
   matrixDummy: THREE.Object3D;
 }
@@ -24,13 +25,25 @@ function createCapsuleVisualState(
   count = FULL_STOCK_CAPSULE_COUNT,
   rng: () => number = Math.random,
 ): CapsuleVisualState {
-  const capsuleGeo = new THREE.SphereGeometry(0.045, 8, 8);
-  const capsuleMat = new THREE.MeshStandardMaterial({
+  const topGeo = new THREE.SphereGeometry(0.045, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+  const bottomGeo = new THREE.SphereGeometry(0.045, 12, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+
+  const topMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    roughness: 0.2,
+    transparent: true,
+    opacity: 0.35,
+    roughness: 0.1,
+    metalness: 0.1,
+    side: THREE.DoubleSide,
+  });
+  const bottomMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, // Will be overridden per-instance
+    roughness: 0.3,
     metalness: 0.1,
   });
-  const mesh = new THREE.InstancedMesh(capsuleGeo, capsuleMat, count);
+
+  const meshTop = new THREE.InstancedMesh(topGeo, topMat, count);
+  const meshBottom = new THREE.InstancedMesh(bottomGeo, bottomMat, count);
 
   const data: CapsuleData[] = [];
   const dummy = new THREE.Object3D();
@@ -60,10 +73,11 @@ function createCapsuleVisualState(
       dummy.position.copy(pos);
       dummy.rotation.copy(rot);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      meshTop.setMatrixAt(i, dummy.matrix);
+      meshBottom.setMatrixAt(i, dummy.matrix);
 
       color.setHSL(rng(), 0.75, 0.52);
-      mesh.setColorAt(i, color);
+      meshBottom.setColorAt(i, color);
     }
   } else {
     // Initial stocked machines start with a dense pile in the chamber.
@@ -93,20 +107,22 @@ function createCapsuleVisualState(
           dummy.position.copy(pos);
           dummy.rotation.copy(rot);
           dummy.updateMatrix();
-          mesh.setMatrixAt(i, dummy.matrix);
+          meshTop.setMatrixAt(i, dummy.matrix);
+          meshBottom.setMatrixAt(i, dummy.matrix);
 
           color.setHSL(rng(), 0.8, 0.5);
-          mesh.setColorAt(i, color);
+          meshBottom.setColorAt(i, color);
           i += 1;
         }
       }
     }
   }
 
-  mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  meshTop.instanceMatrix.needsUpdate = true;
+  meshBottom.instanceMatrix.needsUpdate = true;
+  if (meshBottom.instanceColor) meshBottom.instanceColor.needsUpdate = true;
 
-  return { mesh, data, matrixDummy: new THREE.Object3D() };
+  return { meshTop, meshBottom, data, matrixDummy: new THREE.Object3D() };
 }
 
 function disposeInstancedMesh(mesh: THREE.InstancedMesh) {
@@ -126,13 +142,16 @@ export function setMachineCapsules(
 ) {
   const current = machine.userData['capsules'] as CapsuleVisualState | undefined;
   if (current) {
-    machine.remove(current.mesh);
-    disposeInstancedMesh(current.mesh);
+    machine.remove(current.meshTop);
+    machine.remove(current.meshBottom);
+    disposeInstancedMesh(current.meshTop);
+    disposeInstancedMesh(current.meshBottom);
   }
 
   const next = createCapsuleVisualState(spawnFromTop, count, rng);
   machine.userData['capsules'] = next;
-  machine.add(next.mesh);
+  machine.add(next.meshTop);
+  machine.add(next.meshBottom);
 }
 
 export function restockMachineCapsules(machine: THREE.Group) {
@@ -153,7 +172,7 @@ export function animateMachineCapsules(
     return dt;
   }
 
-  const { mesh, data, matrixDummy: dummy } = capsules;
+  const { meshTop, meshBottom, data, matrixDummy: dummy } = capsules;
   let needsMatrixUpdate = false;
 
   for (let i = 0; i < data.length; i += 1) {
@@ -189,7 +208,8 @@ export function animateMachineCapsules(
       dummy.position.copy(capsule.pos);
       dummy.rotation.copy(capsule.rot);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      meshTop.setMatrixAt(i, dummy.matrix);
+      meshBottom.setMatrixAt(i, dummy.matrix);
       needsMatrixUpdate = true;
       continue;
     }
@@ -203,13 +223,15 @@ export function animateMachineCapsules(
       dummy.position.copy(capsule.pos);
       dummy.rotation.copy(capsule.rot);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      meshTop.setMatrixAt(i, dummy.matrix);
+      meshBottom.setMatrixAt(i, dummy.matrix);
       needsMatrixUpdate = true;
     }
   }
 
   if (needsMatrixUpdate) {
-    mesh.instanceMatrix.needsUpdate = true;
+    meshTop.instanceMatrix.needsUpdate = true;
+    meshBottom.instanceMatrix.needsUpdate = true;
   }
 
   return dt;

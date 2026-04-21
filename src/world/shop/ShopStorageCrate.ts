@@ -32,11 +32,6 @@ export function buildStorageCrate(): BuiltStorageCrate {
     roughness: 0.34,
     metalness: 0.7,
   });
-  const strapMat = new THREE.MeshStandardMaterial({
-    color: 0xd9a235,
-    roughness: 0.45,
-    metalness: 0.3,
-  });
 
   // pallet removed from view
   const palletBase = new THREE.Mesh(new THREE.BoxGeometry(0, 0, 0), palletMat);
@@ -83,12 +78,7 @@ export function buildStorageCrate(): BuiltStorageCrate {
     crate.add(corner);
   });
 
-  const strapFront = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.08, 0.02), strapMat);
-  strapFront.position.set(0, 0.18, 0.34);
-  crate.add(strapFront);
-  const strapTop = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.02, 0.1), strapMat);
-  strapTop.position.set(0, 0.41, 0.22);
-  crate.add(strapTop);
+
 
   const handleLeft = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.24), crateInnerMat);
   handleLeft.position.set(-0.45, 0.19, 0);

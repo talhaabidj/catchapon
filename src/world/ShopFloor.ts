@@ -770,14 +770,14 @@ export function buildShopFloor(
   };
 
   const fixturePositions: Array<[number, number, number]> = [
-    [-4.8, -2.65, Math.PI / 2],
-    [-1.6, -2.65, Math.PI / 2],
-    [1.6, -2.65, Math.PI / 2],
-    [4.8, -2.65, Math.PI / 2],
-    [-4.8, 1.05, Math.PI / 2],
-    [-1.6, 1.05, Math.PI / 2],
-    [1.6, 1.05, Math.PI / 2],
-    [4.95, 2.45, Math.PI / 2],
+    [-4.8, -2.65, 0],
+    [-1.6, -2.65, 0],
+    [1.6, -2.65, 0],
+    [4.8, -2.65, 0],
+    [-4.8, 1.05, 0],
+    [-1.6, 1.05, 0],
+    [1.6, 1.05, 0],
+    [4.8, 1.05, 0],
   ];
   fixturePositions.forEach(([x, z, rot]) => {
     addCeilingFixture(x, z, 2.4, rot);
