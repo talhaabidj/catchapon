@@ -248,21 +248,62 @@ export function buildShopFloor(
   storeDoorKick.position.set(storeDoorWidth / 2, 0.22, 0.03); // Fixed Z side
   storeDoorPivot.add(storeDoorKick);
 
-  const storeLeverRose = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.017, 0.017, 0.01, 14),
-    storeDoorMetalMat,
-  );
-  storeLeverRose.rotation.x = Math.PI / 2;
-  storeLeverRose.position.set(storeDoorWidth - 0.14, 1.04, 0.032);
-  storeDoorPivot.add(storeLeverRose);
+  // Lever handle assembly (Bedroom door style, symmetrical)
+  const handleY = 1.04;
+  const handleBaseX = storeDoorWidth - 0.14;
+  const handleBaseZ = 0.032;
 
-  const storeLeverHandle = new THREE.Mesh(
-    new THREE.BoxGeometry(0.12, 0.014, 0.014),
+  // Front handle (facing Shop)
+  const handleRose = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.014, 0.014, 0.012, 14),
     storeDoorMetalMat,
   );
-  // Point the handle left towards the hinge (X is smaller than rose X)
-  storeLeverHandle.position.set(storeDoorWidth - 0.20, 1.04, 0.036);
-  storeDoorPivot.add(storeLeverHandle);
+  handleRose.rotation.x = Math.PI / 2;
+  handleRose.position.set(handleBaseX, handleY, handleBaseZ);
+  storeDoorPivot.add(handleRose);
+
+  const handleStem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0055, 0.0055, 0.04, 12),
+    storeDoorMetalMat,
+  );
+  handleStem.rotation.x = Math.PI / 2;
+  handleStem.position.set(handleBaseX, handleY, handleBaseZ + 0.015);
+  storeDoorPivot.add(handleStem);
+
+  const handleBar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.007, 0.007, 0.11, 14),
+    storeDoorMetalMat,
+  );
+  handleBar.rotation.z = Math.PI / 2;
+  // Handle points AWAY from hinge so X gets smaller
+  handleBar.position.set(handleBaseX - 0.055, handleY, handleBaseZ + 0.026);
+  storeDoorPivot.add(handleBar);
+
+  const handleTip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.006, 0.006, 0.02, 12),
+    storeDoorMetalMat,
+  );
+  handleTip.rotation.x = Math.PI / 2;
+  handleTip.position.set(handleBaseX - 0.11, handleY, handleBaseZ + 0.026);
+  storeDoorPivot.add(handleTip);
+
+  // Back handle (facing Storeroom)
+  const backBaseZ = -0.032;
+  const handleRoseBack = handleRose.clone();
+  handleRoseBack.position.set(handleBaseX, handleY, backBaseZ);
+  storeDoorPivot.add(handleRoseBack);
+  
+  const handleStemBack = handleStem.clone();
+  handleStemBack.position.set(handleBaseX, handleY, backBaseZ - 0.015);
+  storeDoorPivot.add(handleStemBack);
+
+  const handleBarBack = handleBar.clone();
+  handleBarBack.position.set(handleBaseX - 0.055, handleY, backBaseZ - 0.026);
+  storeDoorPivot.add(handleBarBack);
+
+  const handleTipBack = handleTip.clone();
+  handleTipBack.position.set(handleBaseX - 0.11, handleY, backBaseZ - 0.026);
+  storeDoorPivot.add(handleTipBack);
 
   // Removed hinges on the left side of the storeroom door as requested
 
@@ -306,6 +347,39 @@ export function buildShopFloor(
   storeCeil.rotation.x = Math.PI / 2;
   storeCeil.position.set(ARCHWAY_CENTER_X, STORE_HEIGHT, -HALF_D - STORE_DEPTH / 2);
   group.add(storeCeil);
+
+  // --- Storeroom interior front wall ---
+  // Left section
+  const storeFrontLeft = new THREE.Mesh(
+    new THREE.PlaneGeometry(backLeftWidth, STORE_HEIGHT),
+    storeWallMat,
+  );
+  storeFrontLeft.position.set(-HALF_W + backLeftWidth / 2, STORE_HEIGHT / 2, -HALF_D - 0.001);
+  storeFrontLeft.rotation.y = Math.PI;
+  group.add(storeFrontLeft);
+
+  // Right section
+  if (backRightWidth > 0.01) {
+    const storeFrontRight = new THREE.Mesh(
+      new THREE.PlaneGeometry(backRightWidth, STORE_HEIGHT),
+      storeWallMat,
+    );
+    storeFrontRight.position.set(HALF_W - backRightWidth / 2, STORE_HEIGHT / 2, -HALF_D - 0.001);
+    storeFrontRight.rotation.y = Math.PI;
+    group.add(storeFrontRight);
+  }
+
+  // Top section above door
+  const storeFrontTopHeight = STORE_HEIGHT - ARCHWAY_HEIGHT;
+  if (storeFrontTopHeight > 0.01) {
+    const storeFrontTop = new THREE.Mesh(
+      new THREE.PlaneGeometry(ARCHWAY_WIDTH, storeFrontTopHeight),
+      storeWallMat,
+    );
+    storeFrontTop.position.set(ARCHWAY_CENTER_X, ARCHWAY_HEIGHT + storeFrontTopHeight / 2, -HALF_D - 0.001);
+    storeFrontTop.rotation.y = Math.PI;
+    group.add(storeFrontTop);
+  }
 
   // Storeroom back wall
   const storeBack = new THREE.Mesh(
@@ -778,6 +852,10 @@ export function buildShopFloor(
     [-1.6, 1.05, 0],
     [1.6, 1.05, 0],
     [4.8, 1.05, 0],
+    [-4.8, 4.75, 0],
+    [-1.6, 4.75, 0],
+    [1.6, 4.75, 0],
+    [4.8, 4.75, 0],
   ];
   fixturePositions.forEach(([x, z, rot]) => {
     addCeilingFixture(x, z, 2.4, rot);
