@@ -127,9 +127,9 @@ export function buildShopFloor(
     metalness: 0.2,
   });
   const fixtureDiffuserMat = new THREE.MeshStandardMaterial({
-    color: 0xfffcf5,
-    emissive: 0xffeccc,
-    emissiveIntensity: 0.45,
+    color: 0xffead9,
+    emissive: 0xffa550,
+    emissiveIntensity: 0.35,
     roughness: 0.2,
     metalness: 0.05,
   });
@@ -812,7 +812,7 @@ export function buildShopFloor(
   // Lighting
   // ————————————————————————————————
 
-  const ambient = new THREE.AmbientLight(0xfff1de, 0.38);
+  const ambient = new THREE.AmbientLight(0xffbc80, 0.22);
   group.add(ambient);
 
   // Removed moved materials
@@ -837,7 +837,7 @@ export function buildShopFloor(
     group.add(diffuser);
 
     // Warm, cozy realistic uniform panel light (RectAreaLight)
-    const light = new THREE.RectAreaLight(0xffdec2, 5.0, length - 0.08, 0.36);
+    const light = new THREE.RectAreaLight(0xff9944, 4.2, length - 0.08, 0.36);
     light.position.set(x, 3.88, z);
     light.rotation.x = -Math.PI / 2; // Face down
     light.rotation.z = -rotationY; // Sync orientation
@@ -862,13 +862,13 @@ export function buildShopFloor(
     addCeilingFixture(x, z, 2.4, rot);
   });
 
-  const bounceA = new THREE.PointLight(0xffd7ad, 1.0, 0, 2);
-  bounceA.power = 520;
+  const bounceA = new THREE.PointLight(0xff8833, 1.0, 0, 2);
+  bounceA.power = 400;
   bounceA.position.set(-4.8, 2.2, -1.9);
   group.add(bounceA);
 
-  const bounceB = new THREE.PointLight(0xffd7ad, 1.0, 0, 2);
-  bounceB.power = 500;
+  const bounceB = new THREE.PointLight(0xff8833, 1.0, 0, 2);
+  bounceB.power = 380;
   bounceB.position.set(4.3, 2.18, -1.3);
   group.add(bounceB);
 
