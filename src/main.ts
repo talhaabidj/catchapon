@@ -9,8 +9,12 @@ import { BootScene } from './scenes/BootScene.js';
 import './styles/desktop.css';
 import './styles/bedroom.css';
 import './styles/shop.css';
+import { injectSpeedInsights } from '@vercel/speed-insights';
 
 async function main() {
+  // Initialize Vercel Speed Insights
+  injectSpeedInsights();
+
   const container = document.getElementById('canvas-container');
   if (!container) {
     throw new Error('Missing #canvas-container element in index.html');
