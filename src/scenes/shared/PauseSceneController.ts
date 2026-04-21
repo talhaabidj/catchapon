@@ -114,6 +114,7 @@ export class PauseSceneController {
     this.clickToResumeOverlay = new ClickToStartOverlay({
       id: 'pause-click-resume-overlay',
       zIndex: 980,
+      titleText: 'CLICK TO CONTINUE',
       onActivate: () => {
         void this.resumeFromClick();
       },

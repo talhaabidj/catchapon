@@ -1,6 +1,7 @@
 interface ClickToStartOverlayOptions {
   id: string;
   zIndex: number;
+  titleText?: string;
   onActivate: () => void;
 }
 
@@ -67,7 +68,7 @@ export class ClickToStartOverlay {
     `;
 
     const title = document.createElement('div');
-    title.innerText = 'CLICK TO START';
+    title.innerText = this.options.titleText ?? 'CLICK TO START';
     title.style.cssText = `
       margin: 0;
       font-size: clamp(1.8rem, 4vw, 2.4rem);
