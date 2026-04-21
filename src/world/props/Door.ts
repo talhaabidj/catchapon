@@ -225,25 +225,5 @@ export function createDoor(): THREE.Group {
   handleTip.position.set(handleBaseX - 0.11, handleY, handleBaseZ + 0.026);
   door.add(handleTip);
 
-  // Small emergency light box above the frame.
-  const signBody = new THREE.Mesh(
-    new THREE.BoxGeometry(0.24, 0.055, 0.045),
-    new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.4 }),
-  );
-  signBody.position.set(0, 2.36, 0.01);
-  door.add(signBody);
-
-  const signGlow = new THREE.Mesh(
-    new THREE.BoxGeometry(0.2, 0.014, 0.042),
-    new THREE.MeshStandardMaterial({
-      color: 0xff8f8f,
-      emissive: 0xff6e6e,
-      emissiveIntensity: 0.55,
-      roughness: 0.3,
-    }),
-  );
-  signGlow.position.set(0, 2.34, 0.012);
-  door.add(signGlow);
-
   return door;
 }

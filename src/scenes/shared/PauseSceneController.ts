@@ -3,8 +3,8 @@
  *
  * Flow:
  *   1. ESC pressed → game pauses, cursor unlocks, screen blurs, pause UI shown
- *   2. ESC pressed again → quick resume with free cursor (no blocking overlay)
- *   3. "Resume Game" button → resume and attempt pointer lock immediately
+ *   2. ESC pressed again / "Resume Game" → pause UI closes, click-to-resume gate stays
+ *   3. User clicks gate → pointer lock requested, gameplay resumes
  */
 
 import { FirstPersonController } from '../../core/FirstPersonController.js';
@@ -12,8 +12,6 @@ import { requestPointerLockSafely } from '../../core/PointerLock.js';
 import {
   hidePauseMenu,
   isPauseMenuVisible,
-  setPauseResumeMessage,
-  setPauseResumePending,
   showPauseMenu,
 } from '../../ui/pauseUI.js';
 
@@ -28,6 +26,10 @@ export class PauseSceneController {
   private readonly canvas: HTMLCanvasElement;
   private readonly setPaused: (paused: boolean) => void;
 
+  private clickToResumeVisible = false;
+  private clickToResumeOverlay: HTMLDivElement | null = null;
+  private clickToResumeHint: HTMLParagraphElement | null = null;
+  private clickToResumePending = false;
   private pauseOpenedAtMs = 0;
   private static readonly ESC_TOGGLE_DEBOUNCE_MS = 140;
 
@@ -41,6 +43,7 @@ export class PauseSceneController {
     this.setPaused(true);
     this.pauseOpenedAtMs = performance.now();
     this.controller.setEnabled(false);
+    this.showClickToResumeOverlay();
 
     // Exit pointer lock so the user has a free cursor
     if (document.pointerLockElement === this.canvas) {
@@ -49,7 +52,7 @@ export class PauseSceneController {
 
     showPauseMenu(
       () => {
-        void this.resumeFromButton();
+        this.beginResumeGate();
       },
     );
   }
@@ -60,7 +63,7 @@ export class PauseSceneController {
       return;
     }
 
-    this.resumeFromEscape();
+    this.beginResumeGate();
   }
 
   handlePausedFrame() {
@@ -69,38 +72,128 @@ export class PauseSceneController {
     }
   }
 
-  /** Kept for scene compatibility; click-to-start overlay flow is no longer used. */
+  /** Shared scenes use this to freeze gameplay until click-to-resume succeeds. */
   isClickToStartVisible(): boolean {
-    return false;
+    return this.clickToResumeVisible;
   }
 
-  dispose() {}
+  dispose() {
+    this.clickToResumeOverlay?.remove();
+    this.clickToResumeOverlay = null;
+    this.clickToResumeHint = null;
+    this.clickToResumeVisible = false;
+    this.clickToResumePending = false;
+  }
 
   // ——— Private ———
 
-  private resumeFromEscape() {
+  private beginResumeGate() {
+    if (!isPauseMenuVisible()) return;
     hidePauseMenu();
     this.setPaused(false);
-    this.controller.resumeWithFreeCursor();
+    this.controller.setEnabled(false);
+    this.showClickToResumeOverlay('Click to lock cursor and continue');
   }
 
-  private async resumeFromButton() {
-    if (!isPauseMenuVisible()) return;
-
-    setPauseResumePending(true);
-    setPauseResumeMessage('Resuming...');
-    hidePauseMenu();
-    this.setPaused(false);
-
-    // Resume immediately and keep fallback usability even if lock fails.
-    this.controller.resumeWithFreeCursor();
-    const lockResult = await requestPointerLockSafely(this.canvas, { timeoutMs: 1200 });
-
-    if (lockResult === 'locked') {
-      setPauseResumeMessage('Resumed. Press ESC to pause.');
-    } else {
-      setPauseResumeMessage('Resumed with free cursor. Click in the game view to lock cursor.');
+  private showClickToResumeOverlay(hint = 'Click to lock cursor and continue') {
+    const overlay = this.ensureClickToResumeOverlay();
+    this.clickToResumeVisible = true;
+    this.clickToResumePending = false;
+    overlay.style.display = 'flex';
+    overlay.style.opacity = '1';
+    overlay.style.pointerEvents = 'auto';
+    if (this.clickToResumeHint) {
+      this.clickToResumeHint.innerText = hint;
     }
-    setPauseResumePending(false);
+  }
+
+  private hideClickToResumeOverlay() {
+    const overlay = this.clickToResumeOverlay;
+    if (!overlay) return;
+    this.clickToResumeVisible = false;
+    this.clickToResumePending = false;
+    overlay.style.opacity = '0';
+    overlay.style.pointerEvents = 'none';
+    window.setTimeout(() => {
+      if (!this.clickToResumeVisible) {
+        overlay.style.display = 'none';
+      }
+    }, 120);
+  }
+
+  private ensureClickToResumeOverlay(): HTMLDivElement {
+    if (this.clickToResumeOverlay) return this.clickToResumeOverlay;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'pause-click-resume-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      z-index: 980;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0.55rem;
+      background: rgba(7, 9, 14, 0.68);
+      backdrop-filter: blur(7px);
+      color: #ffffff;
+      text-align: center;
+      user-select: none;
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.12s ease;
+      font-family: 'Segoe UI', sans-serif;
+    `;
+
+    const title = document.createElement('h2');
+    title.innerText = 'CLICK TO RESUME';
+    title.style.cssText = `
+      margin: 0;
+      font-size: clamp(1.5rem, 3.1vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-shadow: 0 0 24px rgba(255, 255, 255, 0.24);
+    `;
+    overlay.appendChild(title);
+
+    const hint = document.createElement('p');
+    hint.innerText = 'Click to lock cursor and continue';
+    hint.style.cssText = `
+      margin: 0;
+      color: #c3cbdf;
+      font-size: 0.95rem;
+      letter-spacing: 0.02em;
+    `;
+    overlay.appendChild(hint);
+    this.clickToResumeHint = hint;
+
+    const tryResume = () => {
+      void this.resumeFromClick();
+    };
+    overlay.addEventListener('pointerdown', tryResume);
+    overlay.addEventListener('click', tryResume);
+
+    document.body.appendChild(overlay);
+    this.clickToResumeOverlay = overlay;
+    return overlay;
+  }
+
+  private async resumeFromClick() {
+    if (!this.clickToResumeVisible || this.clickToResumePending) return;
+    this.clickToResumePending = true;
+    if (this.clickToResumeHint) {
+      this.clickToResumeHint.innerText = 'Locking cursor...';
+    }
+
+    this.hideClickToResumeOverlay();
+    this.controller.resumeWithFreeCursor();
+
+    const lockResult = await requestPointerLockSafely(this.canvas, { timeoutMs: 1200 });
+    if (lockResult === 'locked') {
+      return;
+    }
   }
 }

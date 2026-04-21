@@ -88,13 +88,6 @@ export class FirstPersonController {
     this.enabled = value;
     if (!value && document.pointerLockElement === this.domElement) {
       document.exitPointerLock();
-      return;
-    }
-
-    // Keep the cursor locked whenever controls are active, unless the
-    // player intentionally toggled cursor-free mode via Left Ctrl.
-    if (value && !this.cursorFreed && !this.isPointerLocked) {
-      this.requestPointerLock();
     }
   }
 

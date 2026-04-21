@@ -97,7 +97,7 @@ export function mountPauseUI() {
 
   const subtitle = document.createElement('p');
   subtitle.id = 'pause-status';
-  subtitle.innerText = 'Press ESC again to resume. Cursor will lock when gameplay resumes.';
+  subtitle.innerText = 'Press ESC again to close this menu, then click to lock cursor and continue.';
   subtitle.style.cssText = `
     margin: 0.35rem 0 1rem;
     color: #b7c0d6;
@@ -218,7 +218,7 @@ export function showPauseMenu(
   menu.style.pointerEvents = 'auto';
   setPauseResumePending(false);
   setPauseResumeMessage(
-    'Press ESC again to resume. Cursor will lock when gameplay resumes.',
+    'Press ESC again to close this menu, then click to lock cursor and continue.',
   );
 
   requestAnimationFrame(() => {

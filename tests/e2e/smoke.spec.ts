@@ -117,6 +117,10 @@ test.describe('Catchapon Smoke Test', () => {
     await expect(pauseMenu).toHaveAttribute('data-open', 'false', {
       timeout: 5000,
     });
+    const clickResumeGate = page.locator('#pause-click-resume-overlay');
+    await expect(clickResumeGate).toBeVisible({ timeout: 5000 });
+    await clickResumeGate.click();
+    await expect(clickResumeGate).toBeHidden({ timeout: 5000 });
 
     // Open pause again and ensure explicit Resume still works.
     await page.keyboard.press('Escape');
@@ -128,6 +132,7 @@ test.describe('Catchapon Smoke Test', () => {
     await expect(pauseMenu).toHaveAttribute('data-open', 'false', {
       timeout: 5000,
     });
+    await expect(clickResumeGate).toBeVisible({ timeout: 5000 });
     expect(browserErrors).toEqual([]);
   });
 
