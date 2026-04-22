@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS } from '../../core/Config.js';
+import { sanitizePlayerSettings } from '../../core/PlayerSettings.js';
 import { getItemById } from '../../data/items.js';
 import type { GameState, Rarity } from '../../data/types.js';
 
@@ -50,9 +51,9 @@ export function buildShopReturnGameState(
     tokens: input.tokens,
     ownedItemIds: [...input.ownedItemIds],
     secretsTriggered: [...input.secretsTriggered],
-    settings: {
+    settings: sanitizePlayerSettings({
       ...DEFAULT_SETTINGS,
       ...(input.existingSettings ?? {}),
-    },
+    }),
   };
 }

@@ -22,6 +22,7 @@ import {
   PLAYER_HEIGHT,
 } from './Config.js';
 import { loadGameState } from './Save.js';
+import { sanitizePlayerSettings } from './PlayerSettings.js';
 
 export class FirstPersonController {
   private camera: THREE.PerspectiveCamera | null = null;
@@ -50,11 +51,9 @@ export class FirstPersonController {
     this.isPointerLocked = document.pointerLockElement === this.domElement;
 
     // Load user preferences
-    const state = loadGameState();
-    if (state?.settings) {
-      this.invertY = state.settings.invertY;
-      this.sensitivity = state.settings.mouseSensitivity;
-    }
+    const settings = sanitizePlayerSettings(loadGameState()?.settings);
+    this.invertY = settings.invertY;
+    this.sensitivity = settings.mouseSensitivity;
 
     // Pointer lock listeners
     this.domElement.addEventListener('click', this.requestPointerLock);

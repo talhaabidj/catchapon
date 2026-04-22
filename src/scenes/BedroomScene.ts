@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import type { Scene, GameState } from '../data/types.js';
 import type { Game } from '../core/Game.js';
 import { gameAudio } from '../core/Audio.js';
+import '../styles/bedroom.css';
 import { FirstPersonController } from '../core/FirstPersonController.js';
 import { InteractionSystem } from '../core/InteractionSystem.js';
 import { requestPointerLockSafely } from '../core/PointerLock.js';
@@ -136,7 +137,20 @@ export class BedroomScene implements Scene {
     if (this.showStartGateOnLoad) {
       this.showBedroomStartOverlay();
     }
-    void this.preloadShopScene();
+    // Shop preload is non-critical while the bedroom first appears.
+    // Schedule it in idle time so first-look input stays responsive.
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    };
+    if (win.requestIdleCallback) {
+      win.requestIdleCallback(() => {
+        void this.preloadShopScene();
+      }, { timeout: 2200 });
+    } else {
+      setTimeout(() => {
+        void this.preloadShopScene();
+      }, 450);
+    }
 
     // —— Pause Logic ——
     this.controller.onPause = () => {
@@ -456,7 +470,6 @@ export class BedroomScene implements Scene {
       }
 
       const marker = new THREE.Group();
-
       const glowTex = this.createSoftGlowTexture(color);
       const glowMat = new THREE.MeshBasicMaterial({
         map: glowTex,

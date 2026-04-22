@@ -40,13 +40,6 @@ export function buildTokenStation(): BuiltShopInteractable {
     roughness: 0.35,
     metalness: 0.7,
   });
-  const trimGlow = new THREE.MeshStandardMaterial({
-    color: 0xb8ecff,
-    emissive: 0x74d9ff,
-    emissiveIntensity: 0.6,
-    roughness: 0.28,
-    metalness: 0.42,
-  });
   const darkMat = new THREE.MeshStandardMaterial({
     color: 0x0e1118,
     roughness: 0.92,
@@ -63,7 +56,13 @@ export function buildTokenStation(): BuiltShopInteractable {
   stationGroup.add(mainBody);
 
   // —— Slight backward tilt panel for the upper face (ergonomic) ——
-  const facePanel = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.85, 0.06), frameMat);
+  const facePanelWidth = 0.56;
+  const facePanelHeight = 0.85;
+  const facePanelDepth = 0.06;
+  const facePanel = new THREE.Mesh(
+    new THREE.BoxGeometry(facePanelWidth, facePanelHeight, facePanelDepth),
+    frameMat,
+  );
   facePanel.position.set(0, 1.35, 0.22);
   facePanel.rotation.x = -0.08;
   stationGroup.add(facePanel);
@@ -216,25 +215,6 @@ export function buildTokenStation(): BuiltShopInteractable {
   topCap.position.set(0, 1.81, 0);
   stationGroup.add(topCap);
 
-  // Glowing accent strips (sides)
-  const accentStripGeo = new THREE.BoxGeometry(0.015, 1.2, 0.02);
-  const accentL = new THREE.Mesh(accentStripGeo, trimGlow);
-  accentL.position.set(-0.325, 1.2, 0.25);
-  stationGroup.add(accentL);
-  const accentR = new THREE.Mesh(accentStripGeo, trimGlow);
-  accentR.position.set(0.325, 1.2, 0.25);
-  stationGroup.add(accentR);
-
-  // Top accent strip
-  const topAccent = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.015, 0.015), trimGlow);
-  topAccent.position.set(0, 1.78, 0.27);
-  stationGroup.add(topAccent);
-
-  // Bottom accent strip
-  const botAccent = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.015, 0.015), trimGlow);
-  botAccent.position.set(0, 0.12, 0.25);
-  stationGroup.add(botAccent);
-
   // —— Initialize screen ——
   drawTokenScreen('READY', 'Terminal Online', 0x7be7ff);
 
@@ -248,10 +228,8 @@ export function buildTokenStation(): BuiltShopInteractable {
   };
 
   stationGroup.userData['pulseGlow'] = () => {
-    trimGlow.emissiveIntensity = 1.2;
     screenMat.emissiveIntensity = 0.95;
     setTimeout(() => {
-      trimGlow.emissiveIntensity = 0.6;
       screenMat.emissiveIntensity = 0.65;
     }, 450);
   };

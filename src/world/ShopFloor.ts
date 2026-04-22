@@ -692,14 +692,14 @@ export function buildShopFloor(
   });
 
   const exitFrameMat = new THREE.MeshStandardMaterial({
-    color: 0x939ba6, // Much lighter, removing dark grey
-    roughness: 0.6,
-    metalness: 0.3,
+    color: 0x2a2421,
+    roughness: 0.78,
+    metalness: 0.14,
   });
   const exitTrimMat = new THREE.MeshStandardMaterial({
-    color: 0x98a1af,
-    roughness: 0.48,
-    metalness: 0.2,
+    color: 0x322a24,
+    roughness: 0.72,
+    metalness: 0.1,
   });
   const exitHardwareMat = new THREE.MeshStandardMaterial({
     color: 0xc7ced8,
@@ -725,17 +725,6 @@ export function buildShopFloor(
     roughness: 0.12,
     metalness: 0.16,
     depthWrite: false,
-  });
-  const exitGlassSheenMat = new THREE.MeshStandardMaterial({
-    color: 0xf3fbff,
-    emissive: 0xe5f5ff,
-    emissiveIntensity: 0.14,
-    transparent: true,
-    opacity: 0.2,
-    roughness: 0.16,
-    metalness: 0.04,
-    depthWrite: false,
-    side: THREE.DoubleSide,
   });
 
   const exitJambL = new THREE.Mesh(
@@ -831,13 +820,6 @@ export function buildShopFloor(
   doorGlass.position.set(0, glassY, 0.008);
   exitDoorLeaf.add(doorGlass);
 
-  const glassSheen = new THREE.Mesh(
-    new THREE.PlaneGeometry(glassWidth * 0.18, glassHeight - 0.16),
-    exitGlassSheenMat,
-  );
-  glassSheen.position.set(glassWidth * 0.24, glassY, 0.014);
-  exitDoorLeaf.add(glassSheen);
-
   // Long vertical brushed metal handle bar
   const handleGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.7, 12);
   const exitHandleX = 0.34;
@@ -845,9 +827,6 @@ export function buildShopFloor(
   const handle = new THREE.Mesh(handleGeo, exitHardwareMat);
   handle.position.set(exitHandleX, exitHandleY, 0.092);
   exitDoorLeaf.add(handle);
-  const backHandle = new THREE.Mesh(handleGeo, exitHardwareMat);
-  backHandle.position.set(exitHandleX, exitHandleY, 0.008);
-  exitDoorLeaf.add(backHandle);
 
   // Handle standoff mounts
   const mountGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.06, 8);
@@ -859,13 +838,6 @@ export function buildShopFloor(
   });
 
   // Door closer removed as requested
-
-  const exitKickPlate = new THREE.Mesh(
-    new THREE.BoxGeometry(0.74, 0.18, 0.008),
-    exitHardwareMat,
-  );
-  exitKickPlate.position.set(0, 0.22, 0.078);
-  exitDoorLeaf.add(exitKickPlate);
 
   const frontTrimL = new THREE.Mesh(
     new THREE.BoxGeometry(0.06, EXIT_OPENING_HEIGHT, 0.08),
@@ -897,13 +869,11 @@ export function buildShopFloor(
   // Lighting
   // ————————————————————————————————
 
-  const ambient = new THREE.AmbientLight(0xfff1de, 0.55);
+  const ambient = new THREE.AmbientLight(0xfff1de, 0.58);
   group.add(ambient);
 
-  const hemi = new THREE.HemisphereLight(0xffead2, 0x1a1620, 0.25);
+  const hemi = new THREE.HemisphereLight(0xffead2, 0x1a1620, 0.3);
   group.add(hemi);
-
-  // Removed moved materials
 
   const addCeilingFixture = (x: number, z: number, length = 2.4, rotationY = 0) => {
     // Flush mount base (was body)
@@ -925,10 +895,10 @@ export function buildShopFloor(
     group.add(diffuser);
 
     // Warm, cozy realistic uniform panel light (RectAreaLight)
-    const light = new THREE.RectAreaLight(0xffdec2, 8.5, length - 0.08, 0.36);
+    const light = new THREE.RectAreaLight(0xffdec2, 7.2, length - 0.08, 0.36);
     light.position.set(x, 3.88, z);
-    light.rotation.x = -Math.PI / 2; // Face down
-    light.rotation.z = -rotationY; // Sync orientation
+    light.rotation.x = -Math.PI / 2;
+    light.rotation.z = -rotationY;
     group.add(light);
   };
 
@@ -946,30 +916,23 @@ export function buildShopFloor(
     [1.6, 4.75, 0],
     [4.8, 4.75, 0],
   ];
-  fixturePositions.forEach(([x, z, rot]) => {
+  fixturePositions
+    .filter(([, z]) => z <= 1.05)
+    .forEach(([x, z, rot]) => {
     addCeilingFixture(x, z, 2.4, rot);
   });
 
-  const bounceA = new THREE.PointLight(0xffd7ad, 1.0, 0, 2);
-  bounceA.power = 850;
-  bounceA.position.set(-4.8, 2.2, -1.9);
-  group.add(bounceA);
-
-  const bounceB = new THREE.PointLight(0xffd7ad, 1.0, 0, 2);
-  bounceB.power = 800;
-  bounceB.position.set(4.3, 2.18, -1.3);
-  group.add(bounceB);
-
-  // Additional fill lights for consistent warm coverage
-  const bounceC = new THREE.PointLight(0xffd7ad, 1.0, 0, 2);
-  bounceC.power = 650;
-  bounceC.position.set(0, 2.2, 3.0);
-  group.add(bounceC);
-
-  const bounceD = new THREE.PointLight(0xffd7ad, 1.0, 0, 2);
-  bounceD.power = 650;
-  bounceD.position.set(0, 2.2, -4.0);
-  group.add(bounceD);
+  const bounceLights = [
+    { power: 700, position: [-4.8, 2.2, -1.9] as const },
+    { power: 680, position: [4.3, 2.18, -1.3] as const },
+    { power: 520, position: [0, 2.2, 3.0] as const },
+  ];
+  bounceLights.forEach((spec) => {
+    const bounce = new THREE.PointLight(0xffd7ad, 1.0, 0, 2);
+    bounce.power = spec.power;
+    bounce.position.set(spec.position[0], spec.position[1], spec.position[2]);
+    group.add(bounce);
+  });
 
   // Exit door sconce light removed as requested
 

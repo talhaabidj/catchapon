@@ -6,6 +6,8 @@
 
 const SHOP_HUD_ID = 'shop-hud';
 let pullDismissHandler: ((e: KeyboardEvent) => void) | null = null;
+let lastPromptSignature = '';
+let promptVisible = false;
 
 export interface ShopPromptAction {
   key: string;
@@ -99,6 +101,8 @@ export function unmountShopHUD() {
     window.removeEventListener('keydown', pullDismissHandler);
     pullDismissHandler = null;
   }
+  lastPromptSignature = '';
+  promptVisible = false;
   document.getElementById(SHOP_HUD_ID)?.remove();
 }
 
@@ -163,40 +167,51 @@ export function showShopPrompt(prompt: string | ShopPromptPayload, keyLabel = 'E
     : prompt;
 
   const actions = payload.actions ?? [];
+  const signature = `${payload.text}::${actions.map((a) => `${a.key}:${a.label}`).join('|')}`;
 
   if (el && txt) {
-    txt.textContent = payload.text;
-    if (actionsEl) {
-      actionsEl.innerHTML = '';
-      actionsEl.classList.toggle('hidden', actions.length === 0);
+    // Prompt text often repeats every frame while aiming at the same target.
+    // Skip DOM rewrites unless content actually changed to reduce INP/jank.
+    if (signature !== lastPromptSignature) {
+      txt.textContent = payload.text;
+      if (actionsEl) {
+        actionsEl.innerHTML = '';
+        actionsEl.classList.toggle('hidden', actions.length === 0);
 
-      actions.forEach((action) => {
-        const actionEl = document.createElement('div');
-        actionEl.className = 'shop-prompt-action';
-        actionEl.setAttribute('data-key', action.key);
+        actions.forEach((action) => {
+          const actionEl = document.createElement('div');
+          actionEl.className = 'shop-prompt-action';
+          actionEl.setAttribute('data-key', action.key);
 
-        const keyEl = document.createElement('kbd');
-        keyEl.className = 'shop-prompt-key';
-        keyEl.textContent = action.key;
+          const keyEl = document.createElement('kbd');
+          keyEl.className = 'shop-prompt-key';
+          keyEl.textContent = action.key;
 
-        const labelEl = document.createElement('span');
-        labelEl.className = 'shop-prompt-label';
-        labelEl.textContent = action.label;
+          const labelEl = document.createElement('span');
+          labelEl.className = 'shop-prompt-label';
+          labelEl.textContent = action.label;
 
-        actionEl.appendChild(keyEl);
-        actionEl.appendChild(labelEl);
-        actionsEl.appendChild(actionEl);
-      });
+          actionEl.appendChild(keyEl);
+          actionEl.appendChild(labelEl);
+          actionsEl.appendChild(actionEl);
+        });
+      }
+      el.classList.toggle('has-multi-actions', actions.length > 1);
+      lastPromptSignature = signature;
     }
-
-    el.classList.toggle('has-multi-actions', actions.length > 1);
-    el.classList.add('visible');
+    if (!promptVisible) {
+      el.classList.add('visible');
+      promptVisible = true;
+    }
   }
   document.getElementById('shop-crosshair')?.classList.add('interact');
 }
 
 export function hideShopPrompt() {
-  document.getElementById('shop-interact-prompt')?.classList.remove('visible');
+  if (promptVisible) {
+    document.getElementById('shop-interact-prompt')?.classList.remove('visible');
+    promptVisible = false;
+  }
   document.getElementById('shop-crosshair')?.classList.remove('interact');
 }
 

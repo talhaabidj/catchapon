@@ -6,6 +6,7 @@
 
 import type { GameState } from '../data/types.js';
 import { SAVE_KEY, DEFAULT_SETTINGS } from '../core/Config.js';
+import { sanitizePlayerSettings } from './PlayerSettings.js';
 
 const CURRENT_VERSION = 1;
 
@@ -19,7 +20,7 @@ export function createDefaultGameState(): GameState {
     tokens: 0,
     ownedItemIds: [],
     secretsTriggered: [],
-    settings: { ...DEFAULT_SETTINGS },
+    settings: sanitizePlayerSettings(DEFAULT_SETTINGS),
   };
 }
 
@@ -47,10 +48,7 @@ export function loadGameState(): GameState | null {
       tokens: parsed.tokens ?? 0,
       ownedItemIds: parsed.ownedItemIds ?? [],
       secretsTriggered: parsed.secretsTriggered ?? [],
-      settings: {
-        ...DEFAULT_SETTINGS,
-        ...(parsed.settings ?? {}),
-      },
+      settings: sanitizePlayerSettings(parsed.settings),
     };
   } catch {
     console.warn('Failed to load save, starting fresh');

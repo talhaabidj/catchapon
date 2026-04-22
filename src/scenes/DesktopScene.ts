@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import type { Scene } from '../data/types.js';
 import type { Game } from '../core/Game.js';
 import { mountDesktopUI, unmountDesktopUI } from '../ui/desktopUI.js';
+import '../styles/desktop.css';
 
 export class DesktopScene implements Scene {
   private game: Game;

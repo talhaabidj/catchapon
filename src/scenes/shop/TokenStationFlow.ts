@@ -80,7 +80,6 @@ export function canUseTokenStation(state: MachineState): boolean {
   return (
     state.isPowered &&
     !state.isJammed &&
-    state.cleanliness === 'clean' &&
     state.stockLevel !== 'empty'
   );
 }

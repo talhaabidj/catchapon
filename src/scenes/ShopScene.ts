@@ -15,15 +15,20 @@
  */
 
 import * as THREE from 'three';
-import type { Scene, MachineDefinition, MachineState } from '../data/types.js';
+import type {
+  Scene,
+  MachineDefinition,
+  MachineState,
+  GameState,
+} from '../data/types.js';
 import type { Game } from '../core/Game.js';
 import { gameAudio } from '../core/Audio.js';
+import '../styles/shop.css';
 import { FirstPersonController } from '../core/FirstPersonController.js';
 import { InteractionSystem } from '../core/InteractionSystem.js';
 import { requestPointerLockSafely } from '../core/PointerLock.js';
 import { PLAYER_HEIGHT, PULL_TIME_COST } from '../core/Config.js';
 import { loadGameState, saveGameState } from '../core/Save.js';
-import type { GameState } from '../data/types.js';
 
 // Systems
 import { TimeSystem } from '../systems/TimeSystem.js';
@@ -159,6 +164,7 @@ export class ShopScene implements Scene {
   private shakeIntensity = 0;
   private shakeDuration = 0;
   private shakeTimer = 0;
+  private machineAnimationTick = 0;
 
   constructor(
     game: Game,
@@ -200,9 +206,16 @@ export class ShopScene implements Scene {
     this.capsule = new CapsuleSystem();
   }
 
-  init() {
+  async init() {
     this.hasCapsuleRefill = false;
     this.hasTokenRefill = false;
+
+    // RectAreaLight shader setup is only needed in the shop scene.
+    // Deferring it keeps initial route JS lighter for faster LCP.
+    const { RectAreaLightUniformsLib } = await import(
+      'three/examples/jsm/lights/RectAreaLightUniformsLib.js'
+    );
+    RectAreaLightUniformsLib.init();
 
     // —— Get progression data for this night ——
     const prog = this.progression.getCurrentProgression();
@@ -391,13 +404,27 @@ export class ShopScene implements Scene {
       }
     }
 
-    // —— Machine Polish Animations (M15) ——
+    // Updating every machine every frame causes worst-case frame spikes.
+    // Near machines stay full-rate; far machines update on reduced cadence.
     const timeNow = performance.now() * 0.001;
+    const cameraPos = this.camera.position;
+    this.machineAnimationTick = (this.machineAnimationTick + 1) % 12;
     this.machineGroups.forEach((mGroup, id) => {
+      const animate = mGroup.userData['animate'] as
+        | ((time: number, state?: MachineState) => void)
+        | undefined;
+      if (!animate) return;
+
+      const dx = mGroup.position.x - cameraPos.x;
+      const dz = mGroup.position.z - cameraPos.z;
+      const distSq = dx * dx + dz * dz;
+      let cadence = 1;
+      if (distSq > 196) cadence = 4;
+      else if (distSq > 81) cadence = 2;
+      if ((this.machineAnimationTick % cadence) !== 0) return;
+
       const state = this.maintenance.getState(id);
-      if (mGroup.userData['animate']) {
-        mGroup.userData['animate'](timeNow, state);
-      }
+      animate(timeNow, state);
     });
 
     // —— Movement ——
@@ -577,25 +604,15 @@ export class ShopScene implements Scene {
       if (!machineId) return [{ key: 'E', label: 'Pull' }];
 
       const state = this.maintenance.getState(machineId);
-      const stock = state?.stockLevel ?? 'ok';
-      const needsService =
-        (state?.cleanliness === 'dirty') ||
-        (state?.isJammed === true) ||
-        (state?.isPowered === false);
+      const canPullNow = this.maintenance.canPull(machineId);
+      const hasServiceNeed = this.hasMachineServiceNeed(state);
 
-      const hasRestockNeed = (stock !== 'ok') || this.hasPendingRestockTask(machineId);
-      
-      const hasServiceNeed = needsService || hasRestockNeed;
-
-      if (hasServiceNeed && stock !== 'empty') {
-        return [
-          { key: 'E', label: 'Pull' },
-          { key: 'R', label: 'Service' },
-        ];
-      } else if (hasServiceNeed && stock === 'empty') {
+      if (canPullNow && hasServiceNeed) {
+        return [{ key: 'E', label: 'Pull' }, { key: 'R', label: 'Service' }];
+      }
+      if (!canPullNow && hasServiceNeed) {
         return [{ key: 'R', label: 'Service' }];
       }
-      
       return [{ key: 'E', label: 'Pull' }];
     }
 
@@ -608,24 +625,16 @@ export class ShopScene implements Scene {
     }
 
     if (type === 'token-station') {
-      const stock = this.tokenStationState.stockLevel;
-      const needsService =
-        !this.tokenStationState.isPowered ||
-        this.tokenStationState.isJammed ||
-        this.tokenStationState.cleanliness === 'dirty';
-        
-      const hasRestockNeed = stock !== 'ok' || this.hasPendingRestockTask('token-station');
-      const hasServiceNeed = needsService || hasRestockNeed;
+      const canUseStation = canUseTokenStation(this.tokenStationState);
+      const hasServiceNeed = this.hasMachineServiceNeed(this.tokenStationState);
 
-      if (hasServiceNeed && stock !== 'empty') {
-        return [
-          { key: 'E', label: 'Buy Tokens' },
-          { key: 'R', label: 'Service' },
-        ];
-      } else if (hasServiceNeed && stock === 'empty') {
+      if (canUseStation && hasServiceNeed) {
+        return [{ key: 'E', label: 'Buy Tokens' }, { key: 'R', label: 'Service' }];
+      }
+      if (!canUseStation && hasServiceNeed) {
         return [{ key: 'R', label: 'Service' }];
       }
-      
+
       return [{ key: 'E', label: 'Buy Tokens' }];
     }
 
@@ -662,10 +671,40 @@ export class ShopScene implements Scene {
         return true;
       }
 
-      // If no task completed, check if they can do manual restock
       const state = this.maintenance.getState(machineId);
-      const stock = state?.stockLevel ?? 'ok';
-      if (stock !== 'ok') {
+      if (!state) return false;
+
+      // Manual fallbacks keep machines recoverable even when no explicit task is assigned.
+      if (!state.isPowered && this.maintenance.rewire(machineId)) {
+        const machineGroup = this.machineGroups.get(machineId);
+        if (machineGroup) {
+          triggerMachinePowerPulse(machineGroup);
+        }
+        showToast('Power restored', 1300);
+        this.updateMachineTaskMarkers();
+        this.updateHUD();
+        return true;
+      }
+
+      if (state.isJammed && this.maintenance.fixJam(machineId)) {
+        showToast('Machine jam cleared', 1300);
+        this.updateMachineTaskMarkers();
+        this.updateHUD();
+        return true;
+      }
+
+      if (state.cleanliness === 'dirty' && this.maintenance.cleanMachine(machineId)) {
+        const machineGroup = this.machineGroups.get(machineId);
+        if (machineGroup) {
+          triggerMachineCleanPulse(machineGroup);
+        }
+        showToast('Machine glass cleaned', 1300);
+        this.updateMachineTaskMarkers();
+        this.updateHUD();
+        return true;
+      }
+
+      if (state.stockLevel !== 'ok') {
         if (!this.hasCapsuleRefill) {
           showToast('Pick up capsules from the storage crate first', 1800);
           return true;
@@ -683,7 +722,7 @@ export class ShopScene implements Scene {
         }
         return true;
       }
-      
+
       // If we got here, they hit R but machine has no problems
       showToast('Machine operating normally', 1300);
       return false;
@@ -695,9 +734,41 @@ export class ShopScene implements Scene {
         return true;
       }
 
-      // If no task completed, check if they can do manual restock
-      const stock = this.tokenStationState.stockLevel;
-      if (stock !== 'ok') {
+      // Manual fallbacks keep the terminal recoverable even when no explicit task is assigned.
+      if (!this.tokenStationState.isPowered) {
+        this.tokenStationState.isPowered = true;
+        const pulse = this.tokenStationGroup?.userData['pulseGlow'] as (() => void) | undefined;
+        pulse?.();
+        this.updateTokenStationDisplay();
+        this.updateMachineTaskMarkers();
+        this.updateHUD();
+        showToast('Terminal power restored', 1300);
+        return true;
+      }
+
+      if (this.tokenStationState.isJammed) {
+        this.tokenStationState.isJammed = false;
+        const pulse = this.tokenStationGroup?.userData['pulseGlow'] as (() => void) | undefined;
+        pulse?.();
+        this.updateTokenStationDisplay();
+        this.updateMachineTaskMarkers();
+        this.updateHUD();
+        showToast('Terminal jam cleared', 1300);
+        return true;
+      }
+
+      if (this.tokenStationState.cleanliness === 'dirty') {
+        this.tokenStationState.cleanliness = 'clean';
+        const pulse = this.tokenStationGroup?.userData['pulseGlow'] as (() => void) | undefined;
+        pulse?.();
+        this.updateTokenStationDisplay();
+        this.updateMachineTaskMarkers();
+        this.updateHUD();
+        showToast('Terminal screen cleaned', 1300);
+        return true;
+      }
+
+      if (this.tokenStationState.stockLevel !== 'ok') {
         if (!this.hasTokenRefill) {
           showToast('Pick up token refill pack from token crate first', 1800);
           return true;
@@ -712,7 +783,7 @@ export class ShopScene implements Scene {
         showToast('Terminal restocked', 1400);
         return true;
       }
-      
+
       showToast('Terminal operating normally', 1300);
       return false;
     }
@@ -727,20 +798,8 @@ export class ShopScene implements Scene {
         if (!machineId) return;
 
         const state = this.maintenance.getState(machineId);
-        const stockLevel = state?.stockLevel ?? 'ok';
-
-        if (stockLevel === 'empty') {
-          showToast('Machine empty - press R to service', 1500);
-          return;
-        }
-        
-        const needsService =
-          (state?.cleanliness === 'dirty') ||
-          (state?.isJammed === true) ||
-          (state?.isPowered === false);
-          
-        if (needsService) {
-           showToast(
+        if (!this.maintenance.canPull(machineId)) {
+          showToast(
             getMachineOutOfOrderPrompt(state, this.hasCapsuleRefill) ?? ARCADE_STATUS_TEXT.outOfOrderServiceRequired,
             1800,
           );
@@ -751,28 +810,13 @@ export class ShopScene implements Scene {
         break;
       }
       case 'token-station':
-        if (this.tokenStationState.stockLevel === 'empty') {
-          const needsService =
-            !this.tokenStationState.isPowered ||
-            this.tokenStationState.isJammed ||
-            this.tokenStationState.cleanliness === 'dirty';
-          if(needsService) {
-            showToast('Terminal out of order - press R to service', 1500);
+        if (!canUseTokenStation(this.tokenStationState)) {
+          if (this.tokenStationState.stockLevel === 'empty') {
+            showToast('Terminal empty - press R to service', 1500);
           } else {
-             showToast('Terminal empty - press R to service', 1500);
+            showToast('Terminal out of order - press R to service', 1500);
           }
           return;
-        }
-        
-        {
-          const needsService =
-            !this.tokenStationState.isPowered ||
-            this.tokenStationState.isJammed ||
-            this.tokenStationState.cleanliness === 'dirty';
-          if(needsService) {
-            showToast('Terminal out of order - press R to service', 1500);
-            return;
-          }
         }
 
         this.handleTokenStation();
@@ -944,14 +988,14 @@ export class ShopScene implements Scene {
     return this.maintenance.getState(targetId);
   }
 
-  private hasPendingRestockTask(machineId?: string): boolean {
-    return this.tasks.getTasks().some((task) => {
-      if (task.isCompleted) return false;
-      if (machineId && task.targetId !== machineId) return false;
-
-      const template = TASK_TEMPLATES.find((t) => t.id === task.templateId);
-      return template?.type === 'restock';
-    });
+  private hasMachineServiceNeed(state: MachineState | undefined): boolean {
+    if (!state) return false;
+    return (
+      state.cleanliness === 'dirty' ||
+      !state.isPowered ||
+      state.isJammed ||
+      state.stockLevel !== 'ok'
+    );
   }
 
   private handleStorageCrate() {
@@ -1129,18 +1173,7 @@ export class ShopScene implements Scene {
       const isTokenStationTask = targetId === 'token-station';
       const hasRefill = isTokenStationTask ? this.hasTokenRefill : this.hasCapsuleRefill;
       if (template.type === 'restock' && !hasRefill) {
-        const outOfStock = targetState?.stockLevel === 'empty';
-        if (outOfStock) {
-          gameAudio.play('error');
-          showToast(
-            isTokenStationTask
-              ? 'Get token refill pack from token crate first'
-              : 'Get refill canister from the storage crate first',
-            1600,
-          );
-          return false;
-        }
-        // Low-stock tasks should not block normal machine pulls.
+        // Missing refill should not block other pending machine tasks on the same target.
         continue;
       }
 

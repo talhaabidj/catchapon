@@ -150,6 +150,9 @@ export interface PlayerSettings {
   musicVolume: number;
   mouseSensitivity: number;
   invertY: boolean;
+  dynamicResolution: boolean;
+  minRenderScale: number;
+  maxRenderScale: number;
 }
 
 // ————————————————————————————————

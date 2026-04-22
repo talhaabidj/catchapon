@@ -26,10 +26,13 @@ export class SceneManager {
     }
 
     this.isTransitioning = true;
+    const hadCurrentScene = this.currentScene != null;
 
     try {
-      // Fade to black
-      await this.fadeIn();
+      // First boot has no scene to crossfade from; skipping this avoids startup delay.
+      if (hadCurrentScene) {
+        await this.fadeIn();
+      }
 
       // Dispose old scene
       if (this.currentScene) {
@@ -39,8 +42,10 @@ export class SceneManager {
       this.currentScene = nextScene;
       await nextScene.init();
 
-      // Fade from black
-      await this.fadeOut();
+      if (hadCurrentScene) {
+        // Fade from black
+        await this.fadeOut();
+      }
     } finally {
       this.isTransitioning = false;
     }

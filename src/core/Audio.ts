@@ -7,6 +7,7 @@
 
 import { DEFAULT_SETTINGS } from './Config.js';
 import { loadGameState } from './Save.js';
+import { sanitizePlayerSettings } from './PlayerSettings.js';
 
 type SfxKey =
   | 'ui'
@@ -70,6 +71,7 @@ class GameAudio {
   private context: AudioContext | null = null;
   private masterVolume: number = DEFAULT_SETTINGS.masterVolume;
   private sfxVolume: number = DEFAULT_SETTINGS.sfxVolume;
+  private hasSyncedInitialSettings = false;
 
   unlock(): void {
     if (typeof window === 'undefined') return;
@@ -81,14 +83,19 @@ class GameAudio {
       this.context = new AudioContextCtor();
     }
 
-    this.syncSettings();
+    // Reading/parsing save state on every SFX press adds input latency.
+    // Sync once on first unlock, then rely on explicit syncSettings() calls.
+    if (!this.hasSyncedInitialSettings) {
+      this.syncSettings();
+      this.hasSyncedInitialSettings = true;
+    }
     if (this.context.state === 'suspended') {
       void this.context.resume().catch(() => undefined);
     }
   }
 
   syncSettings(): void {
-    const settings = loadGameState()?.settings ?? DEFAULT_SETTINGS;
+    const settings = sanitizePlayerSettings(loadGameState()?.settings ?? DEFAULT_SETTINGS);
     this.masterVolume = settings.masterVolume;
     this.sfxVolume = settings.sfxVolume;
   }

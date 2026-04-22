@@ -50,5 +50,7 @@ describe('Config', () => {
     expect(DEFAULT_SETTINGS.masterVolume).toBeLessThanOrEqual(1);
     expect(DEFAULT_SETTINGS.sfxVolume).toBeGreaterThanOrEqual(0);
     expect(DEFAULT_SETTINGS.sfxVolume).toBeLessThanOrEqual(1);
+    expect(DEFAULT_SETTINGS.minRenderScale).toBeGreaterThan(0);
+    expect(DEFAULT_SETTINGS.maxRenderScale).toBeLessThanOrEqual(1);
   });
 });

@@ -57,4 +57,7 @@ export const DEFAULT_SETTINGS = {
   musicVolume: 0.6,
   mouseSensitivity: MOUSE_SENSITIVITY,
   invertY: false,
+  dynamicResolution: true,
+  minRenderScale: 0.75,
+  maxRenderScale: 1.0,
 } as const;

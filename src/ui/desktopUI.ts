@@ -8,14 +8,41 @@
 import type { Game } from '../core/Game.js';
 import { gameAudio } from '../core/Audio.js';
 import { loadGameState, saveGameState, createDefaultGameState } from '../core/Save.js';
+import { sanitizePlayerSettings } from '../core/PlayerSettings.js';
+import type { PlayerSettings } from '../data/types.js';
 import { SETS } from '../data/sets.js';
 
-// If Howler is present in their node_modules, this binds global audio.
-// If not installed yet, this will error in Vite until user installs it, as per M14 reqs.
-// @ts-expect-error - Ignore missing types if they haven't installed @types/howler yet
-import * as HowlerModule from 'howler';
-
 const DESKTOP_ID = 'desktop-ui';
+const SETTINGS_UPDATED_EVENT = 'catchapon:settings-updated';
+let howlerModulePromise: Promise<typeof import('howler') | null> | null = null;
+
+function loadHowlerModule() {
+  // Lazy-load Howler only when settings actually need it.
+  // This keeps desktop boot JS lighter for better LCP/INP.
+  if (!howlerModulePromise) {
+    howlerModulePromise = import('howler').catch(() => null);
+  }
+  return howlerModulePromise;
+}
+
+function updatePersistedSettings(
+  update: (settings: PlayerSettings) => void,
+): PlayerSettings {
+  const state = loadGameState() || createDefaultGameState();
+  const settings = sanitizePlayerSettings(state.settings);
+  update(settings);
+  state.settings = sanitizePlayerSettings(settings);
+  saveGameState(state);
+  return state.settings;
+}
+
+function broadcastSettings(settings: PlayerSettings) {
+  window.dispatchEvent(
+    new CustomEvent<{ settings: PlayerSettings }>(SETTINGS_UPDATED_EVENT, {
+      detail: { settings },
+    }),
+  );
+}
 
 /** Mount the desktop UI into #ui-root */
 export function mountDesktopUI(game: Game) {
@@ -105,10 +132,18 @@ export function mountDesktopUI(game: Game) {
             <input type="checkbox" id="settings-invert" />
           </label>
           <label style="display: flex; justify-content: space-between; max-width: 400px;">
-            <span>Graphics Quality</span>
-            <select disabled><option>Ultra</option></select>
+            <span>Adaptive Resolution</span>
+            <input type="checkbox" id="settings-dynamic-resolution" />
           </label>
-          <p style="margin-top: 1rem; color: #666; font-size: 0.9rem;">(System settings are locked by Administrator)</p>
+          <label style="display: flex; justify-content: space-between; max-width: 400px;">
+            <span>Min Render Scale</span>
+            <input type="range" id="settings-min-render-scale" min="60" max="100" value="75" />
+          </label>
+          <label style="display: flex; justify-content: space-between; max-width: 400px;">
+            <span>Max Render Scale</span>
+            <input type="range" id="settings-max-render-scale" min="70" max="100" value="100" />
+          </label>
+          <p style="margin-top: 0.6rem; color: #a9b0c7; font-size: 0.9rem; max-width: 480px;">Adaptive resolution automatically adjusts render scale to keep frame time stable.</p>
         </div>
       </div>
 
@@ -155,11 +190,20 @@ export function mountDesktopUI(game: Game) {
     openOverlay('overlay-settings');
     // Load current config into inputs
     const state = loadGameState() || createDefaultGameState();
+    const settings = sanitizePlayerSettings(state.settings);
     const volInput = document.getElementById('settings-volume') as HTMLInputElement;
     const invInput = document.getElementById('settings-invert') as HTMLInputElement;
-    
-    if (volInput) volInput.value = String((state.settings.masterVolume ?? 0.8) * 100);
-    if (invInput) invInput.checked = state.settings.invertY ?? false;
+    const dynamicResolutionInput = document.getElementById(
+      'settings-dynamic-resolution',
+    ) as HTMLInputElement;
+    const minScaleInput = document.getElementById('settings-min-render-scale') as HTMLInputElement;
+    const maxScaleInput = document.getElementById('settings-max-render-scale') as HTMLInputElement;
+
+    if (volInput) volInput.value = String(Math.round(settings.masterVolume * 100));
+    if (invInput) invInput.checked = settings.invertY;
+    if (dynamicResolutionInput) dynamicResolutionInput.checked = settings.dynamicResolution;
+    if (minScaleInput) minScaleInput.value = String(Math.round(settings.minRenderScale * 100));
+    if (maxScaleInput) maxScaleInput.value = String(Math.round(settings.maxRenderScale * 100));
   });
   document.getElementById('btn-faq')?.addEventListener('click', () => openOverlay('overlay-faq'));
 
@@ -170,28 +214,79 @@ export function mountDesktopUI(game: Game) {
   // —— Wire Settings Persistence ——
   const volInput = document.getElementById('settings-volume') as HTMLInputElement;
   const invInput = document.getElementById('settings-invert') as HTMLInputElement;
+  const dynamicResolutionInput = document.getElementById(
+    'settings-dynamic-resolution',
+  ) as HTMLInputElement;
+  const minScaleInput = document.getElementById('settings-min-render-scale') as HTMLInputElement;
+  const maxScaleInput = document.getElementById('settings-max-render-scale') as HTMLInputElement;
 
   if (volInput) {
     volInput.addEventListener('change', (e) => {
       const val = parseInt((e.target as HTMLInputElement).value, 10);
-      const state = loadGameState() || createDefaultGameState();
-      state.settings.masterVolume = val / 100;
-      saveGameState(state);
-      
-      // Update Howler Globally
-      if (HowlerModule && HowlerModule.Howler) {
-          HowlerModule.Howler.volume(state.settings.masterVolume);
-      }
+      const nextSettings = updatePersistedSettings((settings) => {
+        settings.masterVolume = val / 100;
+      });
+
+      // Update Howler globally only when/if the library is present.
+      void loadHowlerModule().then((howler) => {
+        howler?.Howler?.volume(nextSettings.masterVolume);
+      });
       gameAudio.syncSettings();
+      broadcastSettings(nextSettings);
     });
   }
 
   if (invInput) {
     invInput.addEventListener('change', (e) => {
       const val = (e.target as HTMLInputElement).checked;
-      const state = loadGameState() || createDefaultGameState();
-      state.settings.invertY = val;
-      saveGameState(state);
+      const nextSettings = updatePersistedSettings((settings) => {
+        settings.invertY = val;
+      });
+      broadcastSettings(nextSettings);
+    });
+  }
+
+  if (dynamicResolutionInput) {
+    dynamicResolutionInput.addEventListener('change', (e) => {
+      const checked = (e.target as HTMLInputElement).checked;
+      const nextSettings = updatePersistedSettings((settings) => {
+        settings.dynamicResolution = checked;
+      });
+      broadcastSettings(nextSettings);
+    });
+  }
+
+  if (minScaleInput) {
+    minScaleInput.addEventListener('change', (e) => {
+      const scale = parseInt((e.target as HTMLInputElement).value, 10) / 100;
+      const nextSettings = updatePersistedSettings((settings) => {
+        settings.minRenderScale = scale;
+        if (settings.maxRenderScale < scale) {
+          settings.maxRenderScale = scale;
+        }
+      });
+
+      if (maxScaleInput) {
+        maxScaleInput.value = String(Math.round(nextSettings.maxRenderScale * 100));
+      }
+      broadcastSettings(nextSettings);
+    });
+  }
+
+  if (maxScaleInput) {
+    maxScaleInput.addEventListener('change', (e) => {
+      const scale = parseInt((e.target as HTMLInputElement).value, 10) / 100;
+      const nextSettings = updatePersistedSettings((settings) => {
+        settings.maxRenderScale = scale;
+        if (settings.minRenderScale > scale) {
+          settings.minRenderScale = scale;
+        }
+      });
+
+      if (minScaleInput) {
+        minScaleInput.value = String(Math.round(nextSettings.minRenderScale * 100));
+      }
+      broadcastSettings(nextSettings);
     });
   }
 

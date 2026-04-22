@@ -186,21 +186,35 @@ export function animateMachineCapsules(
 
   const { meshTop, meshBottom, data, matrixDummy: dummy } = capsules;
   let needsMatrixUpdate = false;
+  const activeIndices: number[] = [];
 
   for (let i = 0; i < data.length; i += 1) {
+    if (!data[i]!.settled) activeIndices.push(i);
+  }
+
+  // Most machines settle quickly; skip collision work when fully idle.
+  if (activeIndices.length === 0) {
+    return dt;
+  }
+
+  const RADIUS = 0.045;
+  const MIN_DIST = RADIUS * 2;
+  const MIN_DIST_SQ = MIN_DIST * MIN_DIST;
+
+  for (let activeIdx = 0; activeIdx < activeIndices.length; activeIdx += 1) {
+    const i = activeIndices[activeIdx]!;
     const capsule = data[i]!;
 
-    // Capsule-to-Capsule Fake Physics (O(N^2) but N=45 so it's ~900 checks = 0ms overhead)
-    for (let j = i + 1; j < data.length; j += 1) {
+    // Evaluate collisions around active capsules only (active x all).
+    for (let j = 0; j < data.length; j += 1) {
+      if (j === i) continue;
       const other = data[j]!;
+      // Active-active pairs are handled once (lower index owns resolution).
+      if (!other.settled && j < i) continue;
       const dx = other.pos.x - capsule.pos.x;
       const dy = other.pos.y - capsule.pos.y;
       const dz = other.pos.z - capsule.pos.z;
       const distSq = dx * dx + dy * dy + dz * dz;
-
-      const RADIUS = 0.045;
-      const MIN_DIST = RADIUS * 2;
-      const MIN_DIST_SQ = MIN_DIST * MIN_DIST;
 
       // Only evaluate if they are intersecting
       if (distSq > 0.00001 && distSq < MIN_DIST_SQ) {
@@ -242,9 +256,6 @@ export function animateMachineCapsules(
         }
       }
     }
-
-    // Skip settled capsules from gravity/wall physics
-    if (capsule.settled) continue;
 
     // Gravity.
     capsule.vel.y -= 1.8 * dt;

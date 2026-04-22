@@ -41,6 +41,12 @@ function getPingLevel(valueMs: number | null): PerformanceChipLevel {
   return 'bad';
 }
 
+function getLongTaskLevel(ratePerMin: number): PerformanceChipLevel {
+  if (ratePerMin <= 1.5) return 'good';
+  if (ratePerMin <= 4) return 'warn';
+  return 'bad';
+}
+
 function formatPing(snapshot: PerformanceSnapshot): string {
   if (snapshot.pingMs == null) return 'n/a';
   const pingCore = `${Math.round(snapshot.pingMs)} ms`;
@@ -75,6 +81,11 @@ function buildUserFacingChips(snapshot: PerformanceSnapshot): PerformanceChip[] 
       label: 'Ping',
       value: formatPing(snapshot),
       level: getPingLevel(snapshot.pingMs),
+    },
+    {
+      label: 'Jank',
+      value: `${snapshot.longTaskRatePerMin.toFixed(1)}/m`,
+      level: getLongTaskLevel(snapshot.longTaskRatePerMin),
     },
   ];
 

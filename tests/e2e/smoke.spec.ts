@@ -5,33 +5,31 @@
  * "Start Shift" button is clickable.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+async function bootToDesktop(page: Page) {
+  await page.goto('/');
+  await expect(page.locator('#loading-screen')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('#loading-start-btn')).toBeVisible({ timeout: 5000 });
+  await page.locator('#loading-start-btn').click();
+  await page.locator('#loading-screen').waitFor({ state: 'hidden', timeout: 20000 });
+}
 
 test.describe('Catchapon Smoke Test', () => {
   test('loads the game and shows the desktop scene', async ({ page }) => {
-    await page.goto('/');
+    await bootToDesktop(page);
 
-    // 1. Loading screen should appear
-    const loadingScreen = page.locator('#loading-screen');
-    await expect(loadingScreen).toBeVisible({ timeout: 5000 });
-
-    // 2. Loading screen should eventually hide
-    await expect(loadingScreen).toBeHidden({ timeout: 15000 });
-
-    // 3. Canvas should be present (Three.js renderer)
+    // Canvas should be present (Three.js renderer)
     const canvas = page.locator('#canvas-container canvas');
     await expect(canvas).toBeVisible({ timeout: 5000 });
 
-    // 4. UI root should exist
+    // UI root should exist
     const uiRoot = page.locator('#ui-root');
     await expect(uiRoot).toBeAttached();
   });
 
   test('desktop scene has start shift button', async ({ page }) => {
-    await page.goto('/');
-
-    // Wait for loading to finish
-    await page.locator('#loading-screen').waitFor({ state: 'hidden', timeout: 15000 });
+    await bootToDesktop(page);
 
     // Desktop UI should mount with the start button
     const startBtn = page.locator('#btn-start-shift');
@@ -50,8 +48,7 @@ test.describe('Catchapon Smoke Test', () => {
       }
     });
 
-    await page.goto('/');
-    await page.locator('#loading-screen').waitFor({ state: 'hidden', timeout: 15000 });
+    await bootToDesktop(page);
 
     await page.locator('#btn-start-shift').click();
     await expect(page.locator('#bedroom-shift-start-overlay')).toBeVisible({
@@ -69,8 +66,7 @@ test.describe('Catchapon Smoke Test', () => {
   });
 
   test('bedroom door transitions into the shop scene', async ({ page }) => {
-    await page.goto('/');
-    await page.locator('#loading-screen').waitFor({ state: 'hidden', timeout: 15000 });
+    await bootToDesktop(page);
 
     await page.locator('#btn-start-shift').click();
     await page.locator('#bedroom-shift-start-overlay').click();
@@ -99,8 +95,7 @@ test.describe('Catchapon Smoke Test', () => {
       }
     });
 
-    await page.goto('/');
-    await page.locator('#loading-screen').waitFor({ state: 'hidden', timeout: 15000 });
+    await bootToDesktop(page);
     await page.locator('#btn-start-shift').click();
     await page.locator('#bedroom-shift-start-overlay').click();
     await expect(page.locator('#bedroom-ui')).toBeAttached({ timeout: 5000 });

@@ -1,16 +1,20 @@
 /**
  * main.ts — Catchapon entry point.
  *
- * Initializes the lightweight shell and lazily imports the heavy Game instance,
- * guaranteeing an instant First Contentful Paint (FCP) and fast LCP.
+ * Renders a lightweight splash immediately (LCP target), then boots heavy
+ * Three.js code only after user intent ("Start Game").
  */
 
-import './styles/desktop.css';
-import './styles/bedroom.css';
-import './styles/shop.css';
 import { injectSpeedInsights } from '@vercel/speed-insights';
 
-// Helper to yield execution until the browser has actually painted the screen
+type BootModules = {
+  Game: (typeof import('./core/Game.js'))['Game'];
+  BootScene: (typeof import('./scenes/BootScene.js'))['BootScene'];
+};
+
+let bootModulesPreload: Promise<BootModules | null> | null = null;
+let didStartBoot = false;
+
 function waitForPaint(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
@@ -19,46 +23,134 @@ function waitForPaint(): Promise<void> {
   });
 }
 
-async function main() {
-  injectSpeedInsights();
+function scheduleIdle(work: () => void, timeoutMs = 1200) {
+  const win = window as Window & {
+    requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+  };
+  if (win.requestIdleCallback) {
+    win.requestIdleCallback(work, { timeout: timeoutMs });
+    return;
+  }
+  setTimeout(work, 16);
+}
 
-  // 1. Ensure the canvas container exists in the HTML
+function setLoadingProgress(progressEl: HTMLElement | null, pct: number) {
+  if (!progressEl) return;
+  progressEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+}
+
+function setLoadingStatus(statusEl: HTMLElement | null, text: string) {
+  if (!statusEl) return;
+  statusEl.textContent = text;
+}
+
+function preloadBootModules() {
+  if (!bootModulesPreload) {
+    bootModulesPreload = Promise.all([
+      import('./core/Game.js'),
+      import('./scenes/BootScene.js'),
+    ])
+      .then(([gameMod, bootMod]) => ({
+        Game: gameMod.Game,
+        BootScene: bootMod.BootScene,
+      }))
+      .catch((err) => {
+        console.error('Failed to preload boot modules:', err);
+        return null;
+      });
+  }
+  return bootModulesPreload;
+}
+
+async function bootGame(
+  container: HTMLElement,
+  statusEl: HTMLElement | null,
+  progressEl: HTMLElement | null,
+): Promise<void> {
+  setLoadingStatus(statusEl, 'Loading core systems...');
+  setLoadingProgress(progressEl, 20);
+  await waitForPaint();
+
+  let modules = await preloadBootModules();
+  if (!modules) {
+    const gameMod = await import('./core/Game.js');
+    const bootMod = await import('./scenes/BootScene.js');
+    modules = {
+      Game: gameMod.Game,
+      BootScene: bootMod.BootScene,
+    };
+  }
+  setLoadingStatus(statusEl, 'Preparing renderer...');
+  setLoadingProgress(progressEl, 58);
+
+  const game = new modules.Game(container);
+  game.start();
+
+  setLoadingStatus(statusEl, 'Opening terminal...');
+  setLoadingProgress(progressEl, 82);
+
+  await game.sceneManager.switchTo(new modules.BootScene(game));
+  setLoadingProgress(progressEl, 100);
+}
+
+async function main() {
   const container = document.getElementById('canvas-container');
   if (!container) {
     throw new Error('Missing #canvas-container element in index.html');
   }
 
-  // 2. Yield to the browser render pipeline. 
-  // This guarantees the HTML #loading-screen is painted and measured as the LCP 
-  // *before* we block the main thread parsing heavy 3D assets.
+  const startBtn = document.getElementById('loading-start-btn') as HTMLButtonElement | null;
+  const statusEl = document.getElementById('loading-status');
+  const progressEl = document.getElementById('loading-bar-fill');
+  const tipEl = document.querySelector('.loading-tip') as HTMLElement | null;
+
   await waitForPaint();
 
-  try {
-    // 3. Dynamically import the game engine.
-    // Vite will automatically code-split this into a separate chunk!
-    const { Game } = await import('./core/Game.js');
-    const { BootScene } = await import('./scenes/BootScene.js');
-    const { RectAreaLightUniformsLib } = await import('three/examples/jsm/lights/RectAreaLightUniformsLib.js');
+  // Speed Insights is non-critical to first paint/input. Run after idle.
+  scheduleIdle(() => {
+    injectSpeedInsights();
+  }, 2500);
 
-    // 4. Initialize heavy components
-    RectAreaLightUniformsLib.init();
-    
-    // 5. Mount and start
-    const game = new Game(container);
-    game.start();
+  // Warm chunks during idle without blocking first render or first click.
+  scheduleIdle(() => {
+    void preloadBootModules();
+  }, 2000);
 
-    // Boot into the loading / desktop flow
-    await game.sceneManager.switchTo(new BootScene(game));
+  const beginBoot = async () => {
+    if (didStartBoot) return;
+    didStartBoot = true;
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = 'Starting...';
+    }
 
-  } catch (err) {
-    console.error('Catchapon failed to load game engine:', err);
-    
-    // Optional: Update the loading screen UI to show a failure message
-    const tip = document.querySelector('.loading-tip');
-    if (tip) tip.textContent = 'Failed to load game assets. Please refresh.';
+    try {
+      await bootGame(container, statusEl, progressEl);
+    } catch (err) {
+      console.error('Catchapon failed to start:', err);
+      setLoadingStatus(statusEl, 'Failed to start game');
+      if (tipEl) tipEl.textContent = 'Please refresh and try again.';
+      if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = 'Retry';
+      }
+      didStartBoot = false;
+    }
+  };
+
+  if (startBtn) {
+    startBtn.addEventListener('click', () => {
+      // Let button visual state paint first so first interaction stays responsive.
+      void (async () => {
+        await waitForPaint();
+        await beginBoot();
+      })();
+    });
+  } else {
+    await beginBoot();
   }
 }
 
-main().catch((err) => {
+void main().catch((err) => {
   console.error('Catchapon initialization failed:', err);
 });

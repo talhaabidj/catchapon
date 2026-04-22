@@ -1,4 +1,8 @@
 import type { WebGLRenderer } from 'three';
+import {
+  LONG_TASK_MIN_DURATION_MS,
+  LONG_TASK_WINDOW_MS,
+} from './PerformanceBudget.js';
 
 const SAMPLE_WINDOW_SIZE = 240;
 const PING_SAMPLE_INTERVAL_MS = 2000;
@@ -58,6 +62,10 @@ export interface PerformanceSnapshot {
   heapUsedMB: number | null;
   heapTotalMB: number | null;
   heapLimitMB: number | null;
+  longTaskCount: number;
+  longTaskRatePerMin: number;
+  longTaskTotalMs: number;
+  longTaskWorstMs: number;
 }
 
 function round(value: number, precision = 2): number {
@@ -87,6 +95,9 @@ export class PerformanceMetricsTracker {
   private pingProbeInFlight = false;
   private pingSmoothedMs: number | null = null;
   private pingJitterMs: number | null = null;
+  private readonly longTaskDurations: number[] = [];
+  private readonly longTaskStartTimes: number[] = [];
+  private longTaskObserver: PerformanceObserver | null = null;
 
   private snapshot: PerformanceSnapshot = {
     sceneName: 'None',
@@ -120,7 +131,22 @@ export class PerformanceMetricsTracker {
     heapUsedMB: null,
     heapTotalMB: null,
     heapLimitMB: null,
+    longTaskCount: 0,
+    longTaskRatePerMin: 0,
+    longTaskTotalMs: 0,
+    longTaskWorstMs: 0,
   };
+
+  constructor() {
+    this.initLongTaskObserver();
+  }
+
+  dispose() {
+    this.longTaskObserver?.disconnect();
+    this.longTaskObserver = null;
+    this.longTaskDurations.length = 0;
+    this.longTaskStartTimes.length = 0;
+  }
 
   sample(
     frameDeltaMs: number,
@@ -180,6 +206,7 @@ export class PerformanceMetricsTracker {
     const browserPerformance = performance as BrowserPerformance;
     const heap = browserPerformance.memory;
     const pingMs = this.pingSmoothedMs ?? connectionRtt ?? null;
+    const longTaskStats = this.getLongTaskStats(nowMs);
 
     this.snapshot = {
       sceneName: sceneName ?? 'None',
@@ -213,6 +240,10 @@ export class PerformanceMetricsTracker {
       heapUsedMB: heap ? round(bytesToMB(heap.usedJSHeapSize), 1) : null,
       heapTotalMB: heap ? round(bytesToMB(heap.totalJSHeapSize), 1) : null,
       heapLimitMB: heap ? round(bytesToMB(heap.jsHeapSizeLimit), 1) : null,
+      longTaskCount: longTaskStats.count,
+      longTaskRatePerMin: round(longTaskStats.ratePerMin, 1),
+      longTaskTotalMs: round(longTaskStats.totalMs, 1),
+      longTaskWorstMs: round(longTaskStats.worstMs, 1),
     };
 
     return this.snapshot;
@@ -274,5 +305,66 @@ export class PerformanceMetricsTracker {
     } finally {
       window.clearTimeout(timeoutId);
     }
+  }
+
+  private initLongTaskObserver() {
+    if (typeof window === 'undefined') return;
+    if (typeof PerformanceObserver === 'undefined') return;
+
+    const supportedTypes = PerformanceObserver.supportedEntryTypes;
+    if (!Array.isArray(supportedTypes) || !supportedTypes.includes('longtask')) {
+      return;
+    }
+
+    this.longTaskObserver = new PerformanceObserver((list) => {
+      const entries = list.getEntries();
+      if (!entries.length) return;
+
+      for (const entry of entries) {
+        if (entry.duration < LONG_TASK_MIN_DURATION_MS) continue;
+        this.longTaskStartTimes.push(entry.startTime);
+        this.longTaskDurations.push(entry.duration);
+      }
+    });
+
+    try {
+      this.longTaskObserver.observe({ type: 'longtask', buffered: true });
+    } catch {
+      this.longTaskObserver = null;
+    }
+  }
+
+  private getLongTaskStats(nowMs: number): {
+    count: number;
+    ratePerMin: number;
+    totalMs: number;
+    worstMs: number;
+  } {
+    const cutoffMs = nowMs - LONG_TASK_WINDOW_MS;
+
+    while (
+      this.longTaskStartTimes.length > 0 &&
+      (this.longTaskStartTimes[0] ?? nowMs) < cutoffMs
+    ) {
+      this.longTaskStartTimes.shift();
+      this.longTaskDurations.shift();
+    }
+
+    let totalMs = 0;
+    let worstMs = 0;
+    for (const duration of this.longTaskDurations) {
+      totalMs += duration;
+      if (duration > worstMs) worstMs = duration;
+    }
+
+    const count = this.longTaskDurations.length;
+    const ratePerMin = count * (60000 / LONG_TASK_WINDOW_MS);
+
+    return {
+      count,
+      ratePerMin,
+      totalMs,
+      worstMs,
+    };
   }
 }
