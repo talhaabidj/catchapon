@@ -72,26 +72,6 @@ npm run preview
 2. ZIP the contents of `dist/`
 3. Upload as an HTML5 game
 
-## 📁 Project Structure
-
-```
-catchapon/
-├── public/           # Static assets (audio, models, textures)
-├── src/
-│   ├── core/         # Game engine (Game, SceneManager, Input, etc.)
-│   ├── scenes/       # Scene implementations (Desktop, Bedroom, Shop, etc.)
-│   ├── world/        # 3D world builders (Bedroom, ShopFloor, machines, props)
-│   ├── systems/      # Game logic (Capsule, Collection, Economy, Tasks, etc.)
-│   ├── ui/           # HTML/CSS overlay modules
-│   ├── data/         # Static content (items, sets, machines, tasks)
-│   ├── styles/       # CSS files
-│   └── main.ts       # Entry point
-├── tests/
-│   ├── unit/         # Vitest unit tests
-│   └── e2e/          # Playwright E2E tests
-├── documentation/    # Design docs (PRD, GDD, Architecture, etc.)
-└── .logs/            # Development logs
-```
 
 ## 📜 License
 
