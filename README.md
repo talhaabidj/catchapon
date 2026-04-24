@@ -83,3 +83,10 @@ This project is **source-available and non-commercial** for the game code, with 
 
 You are allowed to create and monetize gameplay videos (e.g., on YouTube or streaming platforms) as long as you credit: "Catchapon — Night Shift Gacha by Talha Abid".
 
+## Credits
+
+- **Code:** Talha Abid – core game architecture, systems, and implementation.
+- **QA & Design:** Sarah Lusher – QA testing, UI/UX design, and bug hunting.
+
+
+
