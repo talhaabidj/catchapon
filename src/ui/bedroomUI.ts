@@ -78,9 +78,6 @@ export function mountBedroomUI() {
               <span class="stat-value" id="stat-sets">0 / 4</span>
             </div>
           </div>
-          <div class="profile-hint">
-            <p>Walk to the door to start your night shift.</p>
-          </div>
         </div>
       </div>
     </div>

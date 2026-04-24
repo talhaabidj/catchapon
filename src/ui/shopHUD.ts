@@ -90,8 +90,17 @@ export function mountShopHUD() {
       <div class="overlay-panel night-summary-panel">
         <h2>Night Complete</h2>
         <div class="night-summary" id="night-summary"></div>
-        <p class="pull-dismiss">Press Q to return home</p>
-        <button class="night-continue-btn" id="night-continue">Return Home</button>
+        <p class="pull-dismiss">Click R for return · Q for cancel</p>
+        <div class="night-actions">
+          <button class="night-continue-btn" id="night-continue">
+            <span class="night-action-key">R</span>
+            <span>Return Home</span>
+          </button>
+          <button class="night-cancel-btn" id="night-cancel">
+            <span class="night-action-key">Q</span>
+            <span>Cancel</span>
+          </button>
+        </div>
       </div>
     </div>
 

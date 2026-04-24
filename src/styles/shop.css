@@ -388,7 +388,7 @@
 }
 
 .night-continue-btn {
-  margin: var(--space-6) auto var(--space-4);
+  margin: 0;
   padding: var(--space-2) var(--space-8);
   background: var(--color-accent);
   color: #fff;
@@ -398,11 +398,58 @@
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .night-continue-btn:hover {
   opacity: 0.85;
+}
+
+.night-actions {
+  margin: var(--space-6) auto var(--space-4);
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.night-cancel-btn {
+  padding: var(--space-2) var(--space-6);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.night-cancel-btn:hover {
+  opacity: 0.85;
+}
+
+.night-action-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(8, 12, 22, 0.42);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .summary-items {
@@ -504,4 +551,3 @@
   0%, 100% { opacity: 0.9; }
   50% { opacity: 0.6; }
 }
-

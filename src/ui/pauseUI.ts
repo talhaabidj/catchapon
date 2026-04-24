@@ -1,4 +1,5 @@
 import { gameAudio } from '../core/Audio.js';
+import { resetPlayerData } from '../core/Save.js';
 import { createPauseInfoSection } from './pause/pauseInfoSection.js';
 import {
   getRenderQualityBounds,
@@ -128,6 +129,13 @@ export function mountPauseUI() {
           <option value="high">High</option>
         </select>
       </label>
+      <button
+        id="pause-settings-reset-data"
+        style="margin-top: 0.25rem; width: fit-content; padding: 0.45rem 0.8rem; border-radius: 6px; border: 1px solid rgba(255,120,120,0.5); background: rgba(120,20,20,0.26); color: #ffd2d2; cursor: pointer; font-size: 0.82rem;"
+      >
+        Reset Player Data
+      </button>
+      <p style="margin: 0.1rem 0 0; color: #c8a7a7; font-size: 0.76rem;">Clears all progress and restarts the game.</p>
     </div>
   `;
   sections.appendChild(settingsSection);
@@ -204,6 +212,9 @@ export function mountPauseUI() {
   const renderQualityInput = document.getElementById(
     'pause-settings-render-quality',
   ) as HTMLSelectElement | null;
+  const resetDataButton = document.getElementById(
+    'pause-settings-reset-data',
+  ) as HTMLButtonElement | null;
 
   if (volInput) {
     volInput.addEventListener('input', (event) => {
@@ -249,6 +260,24 @@ export function mountPauseUI() {
         settings.maxRenderScale = bounds.maxRenderScale;
       });
       notifyPauseSettingsUpdated(nextSettings);
+    });
+  }
+
+  if (resetDataButton) {
+    resetDataButton.addEventListener('click', () => {
+      const confirmed = window.confirm(
+        'Reset all player data? This permanently clears progress, tokens, credits, and settings.',
+      );
+      if (!confirmed) return;
+
+      const resetSuccess = resetPlayerData();
+      if (!resetSuccess) {
+        window.alert('Could not reset player data. Please try again.');
+        return;
+      }
+
+      window.alert('Player data reset. Restarting game now.');
+      window.location.reload();
     });
   }
 

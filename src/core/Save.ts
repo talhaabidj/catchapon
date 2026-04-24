@@ -73,6 +73,17 @@ export function deleteSave(): void {
   localStorage.removeItem(SAVE_KEY);
 }
 
+/** Reset all player data to a fresh default state */
+export function resetPlayerData(): boolean {
+  try {
+    deleteSave();
+    return saveGameState(createDefaultGameState());
+  } catch {
+    console.error('Failed to reset save data');
+    return false;
+  }
+}
+
 /** Check if a save exists */
 export function hasSave(): boolean {
   return localStorage.getItem(SAVE_KEY) !== null;

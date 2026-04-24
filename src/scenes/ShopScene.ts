@@ -106,6 +106,7 @@ import {
   hideTokenOverlay,
   isTokenOverlayVisible,
   showNightEndOverlay,
+  hideNightEndOverlay,
   isNightEndVisible,
   showEndingSoon,
   hideEndingSoon,
@@ -279,6 +280,9 @@ export class ShopScene implements Scene {
     document.getElementById('night-continue')?.addEventListener('click', () => {
       this.returnHome();
     });
+    document.getElementById('night-cancel')?.addEventListener('click', () => {
+      this.dismissNightEndOverlay();
+    });
 
     // —— Resize ——
     window.addEventListener('resize', this.onResize);
@@ -305,9 +309,10 @@ export class ShopScene implements Scene {
 
     // —— Night end overlay active ——
     if (isNightEndVisible()) {
-      // Keep pointer lock; allow keyboard-only continue flow.
-      if (input.isKeyJustPressed('KeyQ')) {
+      if (input.isKeyJustPressed('KeyR')) {
         this.returnHome();
+      } else if (input.isKeyJustPressed('KeyQ')) {
+        this.dismissNightEndOverlay();
       }
       this.game.renderer.render(this.scene3d, this.camera);
       return;
@@ -409,18 +414,32 @@ export class ShopScene implements Scene {
     // —— Interaction check ——
     const target = this.interaction.check(this.camera);
 
-    if (target && !this.nightEnded) {
-      // Build contextual prompt
-      const prompt = this.getContextualPrompt(target.type, target.prompt, target.object);
-      const promptActions = this.getContextualActions(target.type, target.object);
-      showShopPrompt({ text: prompt, actions: promptActions });
+    if (target) {
+      if (this.nightEnded) {
+        if (target.type === 'shop-exit') {
+          showShopPrompt({
+            text: 'Shift complete - press E to open return menu',
+            actions: [{ key: 'E', label: 'Return Menu' }],
+          });
+          if (input.isInteractPressed()) {
+            this.openNightEndOverlay();
+          }
+        } else {
+          hideShopPrompt();
+        }
+      } else {
+        // Build contextual prompt
+        const prompt = this.getContextualPrompt(target.type, target.prompt, target.object);
+        const promptActions = this.getContextualActions(target.type, target.object);
+        showShopPrompt({ text: prompt, actions: promptActions });
 
-      const serviceHandled = input.isServicePressed()
-        ? this.handleServiceInput(target.type, target.object)
-        : false;
+        const serviceHandled = input.isServicePressed()
+          ? this.handleServiceInput(target.type, target.object)
+          : false;
 
-      if (!serviceHandled && input.isInteractPressed()) {
-        this.handleInteraction(target.type, target.object);
+        if (!serviceHandled && input.isInteractPressed()) {
+          this.handleInteraction(target.type, target.object);
+        }
       }
     } else {
       hideShopPrompt();
@@ -1241,12 +1260,7 @@ export class ShopScene implements Scene {
     });
 
     gameAudio.play('nightEnd');
-    showNightEndOverlay(buildNightEndSummary(
-      this.itemsObtainedThisNight,
-      tasksCompleted,
-      tasksTotal,
-      this.moneyEarnedThisNight,
-    ));
+    this.openNightEndOverlay();
   }
 
   /** Build the current GameState from system state */
@@ -1290,6 +1304,28 @@ export class ShopScene implements Scene {
     // Transition back to bedroom with updated state
     await getSceneRouter().toBedroom(this.game, gameState, { showStartGateOnLoad: false });
     fade.remove();
+  }
+
+  private dismissNightEndOverlay() {
+    if (!isNightEndVisible()) return;
+    hideNightEndOverlay();
+    this.controller.setEnabled(true);
+    requestPointerLockSafely(this.game.canvas);
+    showToast('Night complete. Look at the door and press E to reopen the return menu.', 1800);
+  }
+
+  private openNightEndOverlay() {
+    showNightEndOverlay(buildNightEndSummary(
+      this.itemsObtainedThisNight,
+      this.tasks.getCompletedCount(),
+      this.tasks.getTotalCount(),
+      this.moneyEarnedThisNight,
+    ));
+    // Release pointer lock so summary buttons are clickable.
+    this.controller.resumeWithFreeCursor();
+    if (document.pointerLockElement === this.game.canvas) {
+      document.exitPointerLock();
+    }
   }
 
   // ————————————————————————————————

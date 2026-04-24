@@ -7,7 +7,12 @@
 
 import { gameAudio } from '../core/Audio.js';
 import { formatCurrency } from '../core/Currency.js';
-import { loadGameState, saveGameState, createDefaultGameState } from '../core/Save.js';
+import {
+  loadGameState,
+  saveGameState,
+  createDefaultGameState,
+  resetPlayerData,
+} from '../core/Save.js';
 import { sanitizePlayerSettings } from '../core/PlayerSettings.js';
 import type { PlayerSettings } from '../data/types.js';
 import { SETS } from '../data/sets.js';
@@ -138,15 +143,15 @@ export function mountDesktopUI(intents: DesktopUIIntents) {
           <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Current Credits</span><span id="desktop-stat-wallet" style="color:#7c6ef0; font-family: monospace;">${zeroCurrency}</span></div>
           <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Items Collected</span><span id="desktop-stat-items" style="color:#7c6ef0; font-family: monospace;">0 / 25</span></div>
           <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Sets Completed</span><span id="desktop-stat-sets" style="color:#7c6ef0; font-family: monospace;">0 / 4</span></div>
-          <div style="background: rgba(124,110,240,0.08); border:1px solid rgba(124,110,240,0.2); border-radius:8px; color:#a8b0c4; padding:0.75rem 1rem; margin-top:0.3rem;">Walk to the door to start your night shift.</div>
         </div>
       </div>
 
       <div id="overlay-collection" style="display: none;">
-        <h2 style="font-size: 2.5rem; margin-bottom: 1rem; color: #7c6ef0;">Collection Status</h2>
-        <p style="color: #aaa; font-size: 1.2rem;">Open the bedroom collection wall to browse full collectible albums. This desktop page shows synced collection status only.</p>
-        <div style="margin-top: 2rem; background: rgba(255,255,255,0.05); padding: 2rem; border-radius: 8px;">
-          <p>Local Collection Registry is currently syncing...</p>
+        <h2 style="font-size: 2rem; margin-bottom: 1rem; color: #f4f7ff; letter-spacing: 0.03em;">Collection</h2>
+        <div style="display: flex; flex-direction: column; gap: 0.7rem; max-width: 640px;">
+          <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Total Collected</span><span id="desktop-collection-total" style="color:#7c6ef0; font-family: monospace;">0 / 25</span></div>
+          <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:0.8rem 1rem;"><span style="color:#a8b0c4;">Sets Completed</span><span id="desktop-collection-completed" style="color:#7c6ef0; font-family: monospace;">0 / 4</span></div>
+          <div id="desktop-collection-sets" style="display:flex; flex-direction: column; gap: 0.55rem; margin-top: 0.2rem;"></div>
         </div>
       </div>
 
@@ -174,6 +179,13 @@ export function mountDesktopUI(intents: DesktopUIIntents) {
             </select>
           </label>
           <p style="margin-top: 0.6rem; color: #a9b0c7; font-size: 0.9rem; max-width: 480px;">Adaptive resolution stays on by default. Quality controls the adaptive render scale range.</p>
+          <button
+            id="settings-reset-data"
+            style="margin-top: 0.8rem; max-width: 260px; padding: 0.55rem 0.9rem; border-radius: 6px; border: 1px solid rgba(255,120,120,0.52); background: rgba(120,20,20,0.28); color: #ffd2d2; cursor: pointer;"
+          >
+            Reset Player Data
+          </button>
+          <p style="margin-top: 0.2rem; color: #c7a5a5; font-size: 0.82rem; max-width: 520px;">Deletes progress, credits, tokens, collection, secrets, and settings.</p>
         </div>
       </div>
 
@@ -211,6 +223,9 @@ export function mountDesktopUI(intents: DesktopUIIntents) {
 
     if (id === 'overlay-profile') {
       updateDesktopProfileStats();
+    }
+    if (id === 'overlay-collection') {
+      updateDesktopCollectionStats();
     }
   };
 
@@ -250,6 +265,9 @@ export function mountDesktopUI(intents: DesktopUIIntents) {
   const renderQualityInput = document.getElementById(
     'settings-render-quality',
   ) as HTMLSelectElement;
+  const resetDataButton = document.getElementById(
+    'settings-reset-data',
+  ) as HTMLButtonElement;
 
   if (volInput) {
     volInput.addEventListener('change', (e) => {
@@ -296,6 +314,24 @@ export function mountDesktopUI(intents: DesktopUIIntents) {
         settings.maxRenderScale = bounds.maxRenderScale;
       });
       broadcastSettings(nextSettings);
+    });
+  }
+
+  if (resetDataButton) {
+    resetDataButton.addEventListener('click', () => {
+      const confirmed = window.confirm(
+        'Reset all player data? This permanently clears progress, tokens, credits, and settings.',
+      );
+      if (!confirmed) return;
+
+      const resetSuccess = resetPlayerData();
+      if (!resetSuccess) {
+        window.alert('Could not reset player data. Please try again.');
+        return;
+      }
+
+      window.alert('Player data reset. Restarting game now.');
+      window.location.reload();
     });
   }
 
@@ -362,4 +398,27 @@ function updateDesktopProfileStats() {
   if (wallet) wallet.textContent = formatCurrency(state.money);
   if (items) items.textContent = `${state.ownedItemIds.length} / 25`;
   if (sets) sets.textContent = `${completedSets} / ${SETS.length}`;
+}
+
+function updateDesktopCollectionStats() {
+  const state = loadGameState() || createDefaultGameState();
+  const ownedItemIds = new Set(state.ownedItemIds);
+
+  const totalEl = document.getElementById('desktop-collection-total');
+  const completedEl = document.getElementById('desktop-collection-completed');
+  const setsEl = document.getElementById('desktop-collection-sets');
+
+  let completedSets = 0;
+  const rows: string[] = [];
+  for (const set of SETS) {
+    const ownedInSet = set.itemIds.filter((id) => ownedItemIds.has(id)).length;
+    if (ownedInSet === set.itemIds.length) completedSets += 1;
+    rows.push(
+      `<div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:0.65rem 0.9rem;"><span style="color:#b8c0d4;">${set.name}</span><span style="color:#d8dcff; font-family: monospace;">${ownedInSet} / ${set.itemIds.length}</span></div>`,
+    );
+  }
+
+  if (totalEl) totalEl.textContent = `${state.ownedItemIds.length} / 25`;
+  if (completedEl) completedEl.textContent = `${completedSets} / ${SETS.length}`;
+  if (setsEl) setsEl.innerHTML = rows.join('');
 }
