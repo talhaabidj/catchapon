@@ -92,8 +92,8 @@ describe('Data: Machines', () => {
 });
 
 describe('Data: Tasks', () => {
-  it('has 5 task templates', () => {
-    expect(TASK_TEMPLATES.length).toBe(5);
+  it('has 6 task templates', () => {
+    expect(TASK_TEMPLATES.length).toBe(6);
   });
 
   it('all tasks have positive rewards', () => {

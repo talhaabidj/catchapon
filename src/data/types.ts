@@ -73,6 +73,7 @@ export interface MachineState {
 
 export type TaskType =
   | 'clean_floor'
+  | 'pick_trash'
   | 'wipe_glass'
   | 'restock'
   | 'fix_jam'

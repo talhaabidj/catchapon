@@ -4,7 +4,10 @@ import { TASK_TEMPLATES } from '../../data/tasks.js';
 import { INTERACTION_KEYS, tagInteractable } from '../../core/InteractionTags.js';
 import type { ShopCollider } from '../../world/ShopFloor.js';
 
+type FloorSpotKind = 'mud' | 'trash';
+
 interface MudSpotState {
+  kind: FloorSpotKind;
   mesh: THREE.Mesh;
   marker: THREE.Group;
   hitsRequired: number;
@@ -15,6 +18,7 @@ interface MudSpotState {
 }
 
 export interface MudMopResult {
+  kind: FloorSpotKind;
   isCompleted: boolean;
   hitsDone: number;
   hitsRequired: number;
@@ -50,25 +54,42 @@ export class MudSplashTaskSystem {
     });
 
     floorTasks.forEach((task, idx) => {
+      const template = TASK_TEMPLATES.find((t) => t.id === task.templateId);
+      const kindByTarget = task.targetId.startsWith('trash-spot-')
+        ? 'trash'
+        : task.targetId.startsWith('mud-spot-')
+          ? 'mud'
+          : null;
+      const kind: FloorSpotKind = kindByTarget ?? (template?.type === 'pick_trash' ? 'trash' : 'mud');
+      const targetId = kindByTarget
+        ? task.targetId
+        : kind === 'trash'
+          ? `trash-spot-${idx}`
+          : `mud-spot-${idx}`;
+      task.targetId = targetId;
+
       const pos = this.findValidMudSpot(idx);
       const variant = idx + Math.floor(this.rng() * 8);
-      const splash = this.createMudSplashMesh(variant);
+      const splash = kind === 'mud'
+        ? this.createMudSplashMesh(variant)
+        : this.createTrashPickupMesh(variant);
       const marker = this.createTaskMarker();
+      const prompt = kind === 'mud' ? 'Scrub mud splash' : 'Pick up trash';
 
-      splash.name = task.targetId;
+      splash.name = targetId;
       tagInteractable(splash, {
         type: 'floor-spot',
-        prompt: 'Scrub mud splash',
-        targetId: task.targetId,
+        prompt,
+        targetId,
       });
-      marker.name = `${task.targetId}-marker`;
+      marker.name = `${targetId}-marker`;
       tagInteractable(marker, {
         type: 'floor-spot',
-        prompt: 'Scrub mud splash',
-        targetId: task.targetId,
+        prompt,
+        targetId,
       });
 
-      splash.position.set(pos.x, MUD_FLOOR_Y, pos.z);
+      splash.position.set(pos.x, kind === 'mud' ? MUD_FLOOR_Y : 0.045, pos.z);
       splash.rotation.y = this.rng() * Math.PI * 2;
 
       marker.position.set(pos.x, 0.18, pos.z);
@@ -78,10 +99,11 @@ export class MudSplashTaskSystem {
       interactables.push(splash);
       interactables.push(marker);
 
-      this.mudSpots.set(task.targetId, {
+      this.mudSpots.set(targetId, {
+        kind,
         mesh: splash,
         marker,
-        hitsRequired: 3 + Math.floor(this.rng() * 4),
+        hitsRequired: kind === 'mud' ? 3 + Math.floor(this.rng() * 4) : 1,
         hitsDone: 0,
         rewardRemaining: -1,
         timeRemaining: -1,
@@ -114,14 +136,18 @@ export class MudSplashTaskSystem {
       : Math.max(1, Math.floor(spot.timeRemaining / (hitsLeft + 1)));
     spot.timeRemaining = Math.max(0, spot.timeRemaining - timeCost);
 
-    const material = spot.mesh.material as THREE.MeshStandardMaterial;
     const progress = spot.hitsDone / spot.hitsRequired;
-
-    // Shrink and flatten the mud as it gets scrubbed away.
-    const footprintScale = Math.max(0.58, 1 - (progress * (0.24 + this.rng() * 0.06)));
-    const thicknessScale = Math.max(0.45, 1 - progress * 0.62);
-    spot.mesh.scale.set(footprintScale, thicknessScale, footprintScale);
-    material.opacity = Math.max(0.06, 0.92 - progress * 0.82);
+    if (spot.kind === 'mud') {
+      const material = spot.mesh.material as THREE.MeshStandardMaterial;
+      // Shrink and flatten the mud as it gets scrubbed away.
+      const footprintScale = Math.max(0.58, 1 - (progress * (0.24 + this.rng() * 0.06)));
+      const thicknessScale = Math.max(0.45, 1 - progress * 0.62);
+      spot.mesh.scale.set(footprintScale, thicknessScale, footprintScale);
+      material.opacity = Math.max(0.06, 0.92 - progress * 0.82);
+    } else {
+      // Trash pickups clear in one pass; keep only a small motion cue.
+      spot.mesh.rotation.y += 0.08;
+    }
 
     const setProgress = spot.marker.userData['setProgress'] as
       | ((value: number) => void)
@@ -137,6 +163,7 @@ export class MudSplashTaskSystem {
     }
 
     return {
+      kind: spot.kind,
       isCompleted: hitsLeft === 0,
       hitsDone: spot.hitsDone,
       hitsRequired: spot.hitsRequired,
@@ -199,6 +226,19 @@ export class MudSplashTaskSystem {
       polygonOffsetUnits: -2,
     });
 
+    return new THREE.Mesh(geometry, material);
+  }
+
+  private createTrashPickupMesh(seed: number): THREE.Mesh {
+    const tintPalette = [0xe7e1d0, 0xd7d2c3, 0xf2ece0, 0xb1c0cc, 0xf8f8f8];
+    const tint = tintPalette[Math.abs(seed) % tintPalette.length] ?? 0xe7e1d0;
+    const geometry = new THREE.IcosahedronGeometry(0.06, 0);
+    geometry.scale(1.18, 0.76, 0.92);
+    const material = new THREE.MeshStandardMaterial({
+      color: tint,
+      roughness: 0.92,
+      metalness: 0.04,
+    });
     return new THREE.Mesh(geometry, material);
   }
 

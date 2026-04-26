@@ -1,16 +1,25 @@
 /**
- * CollectionWall — A wall-mounted wooden display shelf for gacha items.
+ * CollectionWall — A wall-mounted display shelf for gacha items.
  *
  * INTERACTABLE — opens the Collection viewer overlay.
- * Capsule spheres on wooden shelves update to reflect owned items.
- * Styled as a warm, cozy wooden cabinet with subtle accent lighting.
+ *
+ * Layout: 6 columns × 6 rows, where:
+ *   - Each column maps to one ItemSet (left → right matches SETS order).
+ *   - Each row maps to one rarity (top → bottom: mythical, legendary,
+ *     epic, rare, uncommon, common).
+ *
+ * Display stands are silver. Legendary and mythical slots get a fancier
+ * stand variant with accent rings; common → epic share a simple silver
+ * pedestal.
  */
 
 import * as THREE from 'three';
 import { tagInteractable } from '../../core/InteractionTags.js';
+import type { Item, Rarity } from '../../data/types.js';
+import { SETS } from '../../data/sets.js';
 
 // Rarity → color map
-const RARITY_COLORS: Record<string, number> = {
+const RARITY_COLORS: Record<Rarity, number> = {
   common: 0x9ca3af,
   uncommon: 0x34d399,
   rare: 0x60a5fa,
@@ -18,6 +27,27 @@ const RARITY_COLORS: Record<string, number> = {
   legendary: 0xfbbf24,
   mythical: 0xf472b6,
 };
+
+// Top → bottom row order. Most-rare on top so the eye reads "trophy first."
+const RARITY_ROW_ORDER: readonly Rarity[] = [
+  'mythical',
+  'legendary',
+  'epic',
+  'rare',
+  'uncommon',
+  'common',
+];
+
+const ROWS = RARITY_ROW_ORDER.length; // 6
+const COLS = SETS.length;             // 6
+
+type StandVariant = 'simple' | 'legendary' | 'mythical';
+
+function rarityToVariant(rarity: Rarity): StandVariant {
+  if (rarity === 'mythical') return 'mythical';
+  if (rarity === 'legendary') return 'legendary';
+  return 'simple';
+}
 
 export function createCollectionWall(): THREE.Group {
   const wall = new THREE.Group();
@@ -27,7 +57,7 @@ export function createCollectionWall(): THREE.Group {
     prompt: 'View Collection',
   });
 
-  // —— Material palette inspired by a wooden collector cabinet ——
+  // —— Material palette (warm wooden frame, silver display stands) ——
   const frameWoodMat = new THREE.MeshStandardMaterial({
     color: 0x4a3728,
     roughness: 0.82,
@@ -48,15 +78,38 @@ export function createCollectionWall(): THREE.Group {
     roughness: 0.8,
     metalness: 0.02,
   });
-  const pedestalMat = new THREE.MeshStandardMaterial({
-    color: 0x6e5440,
-    roughness: 0.82,
-    metalness: 0.04,
+
+  // Silver display materials. Brushed look = high metalness, mid roughness.
+  const silverBaseMat = new THREE.MeshStandardMaterial({
+    color: 0xcfd2d8,
+    roughness: 0.32,
+    metalness: 0.92,
   });
-  const pedestalTopMat = new THREE.MeshStandardMaterial({
-    color: 0x80634c,
-    roughness: 0.78,
-    metalness: 0.03,
+  const silverTopMat = new THREE.MeshStandardMaterial({
+    color: 0xe6e8ee,
+    roughness: 0.22,
+    metalness: 0.95,
+  });
+  const goldRingMat = new THREE.MeshStandardMaterial({
+    color: 0xf2c242,
+    roughness: 0.28,
+    metalness: 0.92,
+    emissive: 0x4a3608,
+    emissiveIntensity: 0.55,
+  });
+  const mythicRingMat = new THREE.MeshStandardMaterial({
+    color: 0xf472b6,
+    roughness: 0.24,
+    metalness: 0.85,
+    emissive: 0x6a1f4a,
+    emissiveIntensity: 0.7,
+  });
+  const mythicCrownMat = new THREE.MeshStandardMaterial({
+    color: 0xeae0ff,
+    roughness: 0.18,
+    metalness: 0.9,
+    emissive: 0x4a2c80,
+    emissiveIntensity: 0.45,
   });
 
   const outerW = 1.02;
@@ -67,8 +120,6 @@ export function createCollectionWall(): THREE.Group {
   const dividerThickness = 0.01;
   const backThickness = 0.012;
   const cellDepth = 0.112;
-  const cols = 6;
-  const rows = 7;
 
   const frameCenterZ = -0.04;
   const frameRail = (outerW - innerW) / 2;
@@ -110,12 +161,12 @@ export function createCollectionWall(): THREE.Group {
   backPanel.position.set(0, 0, frameCenterZ - outerD / 2 + backThickness / 2 + 0.004);
   wall.add(backPanel);
 
-  const cellW = (innerW - (cols + 1) * dividerThickness) / cols;
-  const cellH = (innerH - (rows + 1) * dividerThickness) / rows;
+  const cellW = (innerW - (COLS + 1) * dividerThickness) / COLS;
+  const cellH = (innerH - (ROWS + 1) * dividerThickness) / ROWS;
   const dividerZ = backPanel.position.z + backThickness / 2 + cellDepth / 2;
 
   // Horizontal and vertical divider lattice forms true 3D cubicals.
-  for (let r = 0; r <= rows; r += 1) {
+  for (let r = 0; r <= ROWS; r += 1) {
     const y = innerH / 2 - dividerThickness / 2 - r * (cellH + dividerThickness);
     const divider = new THREE.Mesh(
       new THREE.BoxGeometry(innerW, dividerThickness, cellDepth),
@@ -125,7 +176,7 @@ export function createCollectionWall(): THREE.Group {
     wall.add(divider);
   }
 
-  for (let c = 0; c <= cols; c += 1) {
+  for (let c = 0; c <= COLS; c += 1) {
     const x = -innerW / 2 + dividerThickness / 2 + c * (cellW + dividerThickness);
     const divider = new THREE.Mesh(
       new THREE.BoxGeometry(dividerThickness, innerH, cellDepth),
@@ -135,7 +186,7 @@ export function createCollectionWall(): THREE.Group {
     wall.add(divider);
   }
 
-  // —— Item slots distributed across the cubby matrix ——
+  // —— Item slots, one per (rarity row, set column) cell ——
   const slotGroup = new THREE.Group();
   slotGroup.name = 'collection-slots';
 
@@ -144,11 +195,10 @@ export function createCollectionWall(): THREE.Group {
   const cellFloorOffset = cellH / 2 - 0.01;
   const pedestalZ = backPanel.position.z + backThickness / 2 + 0.04;
   const cubbyBackThickness = 0.01;
-  // Keep each cubby background clearly in front of the room wall plane.
   const cubbyBackPanelZ = frameCenterZ + 0.002;
 
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
       const xPos = startX + col * (cellW + dividerThickness);
       const yCenter = startY - row * (cellH + dividerThickness);
       const baseY = yCenter - cellFloorOffset;
@@ -160,25 +210,26 @@ export function createCollectionWall(): THREE.Group {
       cubbyBackPanel.position.set(xPos, yCenter, cubbyBackPanelZ);
       wall.add(cubbyBackPanel);
 
-      const stand = new THREE.Group();
-      stand.position.set(xPos, baseY, pedestalZ);
-      stand.visible = false;
+      // Build all three stand variants per slot, all hidden at start.
+      // updateCollectionWallVisuals will reveal the variant matching the
+      // owned item's rarity.
+      const stands: Record<StandVariant, THREE.Group> = {
+        simple: buildSimpleStand(silverBaseMat, silverTopMat),
+        legendary: buildLegendaryStand(silverBaseMat, silverTopMat, goldRingMat),
+        mythical: buildMythicalStand(
+          silverBaseMat,
+          silverTopMat,
+          mythicRingMat,
+          mythicCrownMat,
+        ),
+      };
 
-      const standBase = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.019, 0.022, 0.008, 14),
-        pedestalMat,
-      );
-      standBase.position.set(0, 0, 0);
-      stand.add(standBase);
-
-      const standTop = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.0165, 0.0165, 0.004, 14),
-        pedestalTopMat,
-      );
-      standTop.position.set(0, 0.006, 0);
-      stand.add(standTop);
-
-      slotGroup.add(stand);
+      for (const variant of ['simple', 'legendary', 'mythical'] as const) {
+        const stand = stands[variant];
+        stand.position.set(xPos, baseY, pedestalZ);
+        stand.visible = false;
+        slotGroup.add(stand);
+      }
 
       const radius = Math.min(cellW, cellH) * 0.26;
       const slotMat = new THREE.MeshStandardMaterial({
@@ -192,9 +243,9 @@ export function createCollectionWall(): THREE.Group {
         new THREE.SphereGeometry(radius, 16, 12),
         slotMat,
       );
-      sphere.position.set(xPos, baseY + 0.006 + radius + 0.003, pedestalZ);
+      sphere.position.set(xPos, baseY + 0.012 + radius + 0.003, pedestalZ);
       sphere.name = `slot-${row}-${col}`;
-      sphere.userData['stand'] = stand;
+      sphere.userData['stands'] = stands;
       sphere.visible = false;
       slotGroup.add(sphere);
     }
@@ -204,48 +255,180 @@ export function createCollectionWall(): THREE.Group {
   return wall;
 }
 
+function buildSimpleStand(
+  baseMat: THREE.Material,
+  topMat: THREE.Material,
+): THREE.Group {
+  const stand = new THREE.Group();
+  const standBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.019, 0.022, 0.008, 16),
+    baseMat,
+  );
+  standBase.position.set(0, 0, 0);
+  stand.add(standBase);
+
+  const standTop = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0165, 0.0165, 0.004, 16),
+    topMat,
+  );
+  standTop.position.set(0, 0.006, 0);
+  stand.add(standTop);
+  return stand;
+}
+
+function buildLegendaryStand(
+  baseMat: THREE.Material,
+  topMat: THREE.Material,
+  goldMat: THREE.Material,
+): THREE.Group {
+  const stand = new THREE.Group();
+
+  // Wider, slightly taller silver base with a step.
+  const lowerBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.026, 0.029, 0.006, 18),
+    baseMat,
+  );
+  lowerBase.position.set(0, 0, 0);
+  stand.add(lowerBase);
+
+  const upperBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.024, 0.006, 18),
+    topMat,
+  );
+  upperBase.position.set(0, 0.006, 0);
+  stand.add(upperBase);
+
+  // Gold accent ring sitting on top of the silver tier.
+  const goldRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.020, 0.0025, 8, 28),
+    goldMat,
+  );
+  goldRing.rotation.x = Math.PI / 2;
+  goldRing.position.set(0, 0.012, 0);
+  stand.add(goldRing);
+
+  return stand;
+}
+
+function buildMythicalStand(
+  baseMat: THREE.Material,
+  topMat: THREE.Material,
+  mythicRingMat: THREE.Material,
+  crownMat: THREE.Material,
+): THREE.Group {
+  const stand = new THREE.Group();
+
+  // Three-tier silver base, slightly taller than legendary.
+  const tier0 = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.029, 0.032, 0.005, 20),
+    baseMat,
+  );
+  tier0.position.set(0, 0, 0);
+  stand.add(tier0);
+
+  const tier1 = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.027, 0.005, 20),
+    topMat,
+  );
+  tier1.position.set(0, 0.005, 0);
+  stand.add(tier1);
+
+  const tier2 = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.021, 0.022, 0.004, 20),
+    crownMat,
+  );
+  tier2.position.set(0, 0.010, 0);
+  stand.add(tier2);
+
+  // Iridescent magenta halo ring around the rim.
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.024, 0.0028, 10, 32),
+    mythicRingMat,
+  );
+  ring.rotation.x = Math.PI / 2;
+  ring.position.set(0, 0.014, 0);
+  stand.add(ring);
+
+  // Four small spires evoking a "crown" at the cardinal points.
+  for (let i = 0; i < 4; i += 1) {
+    const spire = new THREE.Mesh(
+      new THREE.ConeGeometry(0.0028, 0.008, 6),
+      crownMat,
+    );
+    const angle = (i / 4) * Math.PI * 2;
+    spire.position.set(
+      Math.cos(angle) * 0.020,
+      0.018,
+      Math.sin(angle) * 0.020,
+    );
+    stand.add(spire);
+  }
+
+  return stand;
+}
+
 /**
  * Update the collection wall to visually reflect owned items.
+ *
+ * Items are placed deterministically by (set column, rarity row): each
+ * column corresponds to one ItemSet in SETS order, each row to a rarity
+ * tier (mythical at top → common at bottom). Display stand variant is
+ * picked from the item's rarity (simple / legendary / mythical).
  */
 export function updateCollectionWallVisuals(
   wallGroup: THREE.Group,
-  ownedItems: Array<{ rarity: string }>,
+  ownedItems: Array<Pick<Item, 'rarity' | 'setId'>>,
 ): void {
   const slots = wallGroup.getObjectByName('collection-slots');
   if (!slots) return;
 
-  let slotIdx = 0;
+  // Build a (row, col) → item lookup so unowned slots can be hidden.
+  const slotItem = new Map<string, Pick<Item, 'rarity' | 'setId'>>();
+  for (const item of ownedItems) {
+    const col = SETS.findIndex((s) => s.id === item.setId);
+    const row = RARITY_ROW_ORDER.indexOf(item.rarity);
+    if (col < 0 || row < 0) continue;
+    slotItem.set(`${row}-${col}`, item);
+  }
+
   slots.traverse((child) => {
-    if (child instanceof THREE.Mesh && child.name.startsWith('slot-')) {
-      if (slotIdx < ownedItems.length) {
-        const item = ownedItems[slotIdx]!;
-        const color = RARITY_COLORS[item.rarity] ?? 0x9ca3af;
-        const mat = child.material as THREE.MeshStandardMaterial;
-        child.visible = true;
-        mat.color.setHex(color);
-        mat.opacity = 1.0;
-        mat.emissive.setHex(color);
-        mat.emissiveIntensity = 0.5;
-        mat.transparent = false;
+    if (!(child instanceof THREE.Mesh) || !child.name.startsWith('slot-')) return;
+    const key = child.name.slice('slot-'.length);
+    const item = slotItem.get(key);
+    const stands = child.userData['stands'] as
+      | Record<StandVariant, THREE.Group>
+      | undefined;
+    const mat = child.material as THREE.MeshStandardMaterial;
 
-        const stand = child.userData['stand'];
-        if (stand instanceof THREE.Group) {
-          stand.visible = true;
-        }
-      } else {
-        const mat = child.material as THREE.MeshStandardMaterial;
-        child.visible = false;
-        mat.opacity = 0;
-        mat.transparent = true;
-        mat.emissive.setHex(0x000000);
-        mat.emissiveIntensity = 0;
-
-        const stand = child.userData['stand'];
-        if (stand instanceof THREE.Group) {
-          stand.visible = false;
+    if (!item) {
+      child.visible = false;
+      mat.opacity = 0;
+      mat.transparent = true;
+      mat.emissive.setHex(0x000000);
+      mat.emissiveIntensity = 0;
+      if (stands) {
+        for (const variant of ['simple', 'legendary', 'mythical'] as const) {
+          stands[variant].visible = false;
         }
       }
-      slotIdx++;
+      return;
+    }
+
+    const color = RARITY_COLORS[item.rarity] ?? RARITY_COLORS.common;
+    child.visible = true;
+    mat.color.setHex(color);
+    mat.opacity = 1.0;
+    mat.emissive.setHex(color);
+    mat.emissiveIntensity = item.rarity === 'mythical' || item.rarity === 'legendary'
+      ? 0.75
+      : 0.5;
+    mat.transparent = false;
+
+    if (stands) {
+      const variant = rarityToVariant(item.rarity);
+      for (const v of ['simple', 'legendary', 'mythical'] as const) {
+        stands[v].visible = v === variant;
+      }
     }
   });
 }

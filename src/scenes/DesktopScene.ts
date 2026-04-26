@@ -103,6 +103,8 @@ export class DesktopScene implements Scene {
   private async startNightShift() {
     if (this.isStartingNightShift) return;
     this.isStartingNightShift = true;
-    await getSceneRouter().toBedroom(this.game);
+    await getSceneRouter().toBedroom(this.game, undefined, {
+      showStartGateOnLoad: true,
+    });
   }
 }

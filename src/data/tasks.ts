@@ -1,7 +1,7 @@
 /**
  * tasks.ts — Task template definitions.
  *
- * 5 task types used by TaskSystem to generate nightly work.
+ * 6 task templates used by TaskSystem to generate nightly work.
  */
 
 import type { TaskTemplate } from './types.js';
@@ -10,9 +10,17 @@ export const TASK_TEMPLATES: readonly TaskTemplate[] = [
   {
     id: 'task-clean-floor',
     type: 'clean_floor',
-    description: 'Clean a floor mess',
+    description: 'Scrub mud splash',
     baseReward: 14,
     timeCost: 10,
+    targetType: 'floor',
+  },
+  {
+    id: 'task-pick-trash',
+    type: 'pick_trash',
+    description: 'Pick up trash',
+    baseReward: 11,
+    timeCost: 6,
     targetType: 'floor',
   },
   {

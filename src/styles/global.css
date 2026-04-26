@@ -167,6 +167,42 @@
   font-size: var(--text-xs);
   color: var(--info-title);
 }
+/* Shared key-hint pill — used wherever a screen tells the player which key
+   dismisses an overlay or advances a flow. Replaces ad-hoc "Press X to …"
+   text. Always renders as a real button-shaped element with a key glyph. */
+.key-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  background: rgba(8, 12, 22, 0.78);
+  border: 1px solid var(--info-card-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--info-title);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+.key-hint-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 0.45rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--info-card-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--info-mono);
+  line-height: 1;
+}
+.key-hint-label {
+  color: var(--info-title);
+}
 .settings-danger-btn {
   border: 1px solid rgba(255, 120, 120, 0.52);
   background: rgba(120, 20, 20, 0.28);

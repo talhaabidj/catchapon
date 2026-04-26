@@ -36,7 +36,13 @@ export class ShopHudPresenter {
 
       let description = template?.description ?? 'Unknown task';
       if (template?.targetType === 'floor') {
-        description = 'Scrub mud splash until clean';
+        if (template.type === 'pick_trash' || t.targetId.startsWith('trash-spot-')) {
+          description = 'Pick up trash';
+        } else if (template.type === 'clean_floor' || t.targetId.startsWith('mud-spot-')) {
+          description = 'Scrub mud splash until clean';
+        } else {
+          description = 'Clean floor mess';
+        }
       } else if (machine) {
         description = `${template?.description ?? 'Service machine'} - ${machine.name}`;
       } else if (t.targetId === 'token-station') {

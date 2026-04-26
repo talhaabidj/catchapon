@@ -121,7 +121,7 @@ export function buildShopTrash(): BuiltShopTrash {
     }
     prop.position.set(spec.x, 0, spec.z);
     prop.rotation.y = spec.rotY;
-    const targetId = `trash-spot-${index}`;
+    const targetId = `ambient-trash-spot-${index}`;
     prop.name = targetId;
     prop.userData['isAmbientTrash'] = true;
     tagInteractable(prop, {

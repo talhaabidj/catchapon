@@ -81,7 +81,10 @@ export function mountShopHUD() {
       <div class="pull-item-name" id="pull-item-name"></div>
       <div class="pull-item-rarity" id="pull-item-rarity"></div>
       <div class="pull-item-flavor" id="pull-item-flavor"></div>
-      <div class="pull-dismiss" id="pull-dismiss-text">Press Q to continue</div>
+      <div class="key-hint pull-dismiss" id="pull-dismiss-text">
+        <span class="key-hint-key" id="pull-dismiss-key">Q</span>
+        <span class="key-hint-label">Continue</span>
+      </div>
     </div>
 
     <div class="shop-token-overlay hidden" id="token-overlay">
@@ -106,7 +109,6 @@ export function mountShopHUD() {
       <div class="overlay-panel night-summary-panel">
         <h2>Night Complete</h2>
         <div class="night-summary" id="night-summary"></div>
-        <p class="pull-dismiss">Click R for return · Q for cancel</p>
         <div class="night-actions">
           <button class="night-continue-btn" id="night-continue">
             <span class="night-action-key">R</span>
@@ -281,9 +283,9 @@ export function showPullResult(
     flavorEl.textContent = `"${flavor}"`;
     el.classList.remove('hidden');
 
-    const dismissText = document.getElementById('pull-dismiss-text');
-    if (dismissText) {
-      dismissText.textContent = `Press ${dismissKeyCode.replace('Key', '')} to continue`;
+    const dismissKeyEl = document.getElementById('pull-dismiss-key');
+    if (dismissKeyEl) {
+      dismissKeyEl.textContent = dismissKeyCode.replace('Key', '');
     }
 
     if (onDismiss) {

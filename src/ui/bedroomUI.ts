@@ -94,7 +94,10 @@ export function mountBedroomUI() {
           <span class="shelf-nav-btn"><kbd>D</kbd> ▶</span>
         </div>
       </div>
-      <div class="shelf-close-hint">Press Q to close</div>
+      <div class="key-hint shelf-close-hint">
+        <span class="key-hint-key">Q</span>
+        <span class="key-hint-label">Close</span>
+      </div>
     </div>
   `;
   uiRoot.appendChild(container);

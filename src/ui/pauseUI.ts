@@ -229,8 +229,10 @@ export function mountPauseUI() {
         return;
       }
 
-      window.alert('Player data reset. Restarting game now.');
-      window.location.reload();
+      // Force a fresh load via replace() — avoids stale history entries and
+      // any beforeunload prompts from in-game scenes. The reset already
+      // succeeded; no extra alert (browsers can suppress consecutive alerts).
+      window.location.replace(window.location.pathname);
     });
   }
 

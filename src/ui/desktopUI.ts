@@ -331,8 +331,8 @@ export function mountDesktopUI(intents: DesktopUIIntents) {
         return;
       }
 
-      window.alert('Player data reset. Restarting game now.');
-      window.location.reload();
+      // Force a fresh load — replace() avoids stale history entries.
+      window.location.replace(window.location.pathname);
     });
   }
 

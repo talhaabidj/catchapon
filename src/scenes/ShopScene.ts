@@ -1056,7 +1056,7 @@ export class ShopScene implements Scene {
     const targetId = getTargetId(object);
     if (!targetId) return;
 
-    if (targetId.startsWith('trash-spot-')) {
+    if (targetId.startsWith('ambient-trash-spot-')) {
       if (object.userData[INTERACTION_KEYS.interactable] !== true) return;
 
       object.userData[INTERACTION_KEYS.interactable] = false;
@@ -1097,14 +1097,16 @@ export class ShopScene implements Scene {
 
     if (mopResult.isCompleted) {
       this.tasks.completeTask(taskIndex);
+      const completionText = mopResult.kind === 'trash' ? 'Trash picked' : 'Mud cleaned';
       showToast(
-        `Mud cleaned ${mopResult.hitsDone}/${mopResult.hitsRequired} (${formatCurrencyDelta(mopResult.rewardGained)})`,
+        `${completionText} ${mopResult.hitsDone}/${mopResult.hitsRequired} (${formatCurrencyDelta(mopResult.rewardGained)})`,
         1400,
       );
       this.renderTasks();
     } else {
+      const progressText = mopResult.kind === 'trash' ? 'Picking trash' : 'Scrubbing mud';
       showToast(
-        `Scrubbing mud ${mopResult.hitsDone}/${mopResult.hitsRequired} (${formatCurrencyDelta(mopResult.rewardGained)})`,
+        `${progressText} ${mopResult.hitsDone}/${mopResult.hitsRequired} (${formatCurrencyDelta(mopResult.rewardGained)})`,
         1200,
       );
     }

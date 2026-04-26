@@ -73,20 +73,38 @@ export function deleteSave(): void {
   localStorage.removeItem(SAVE_KEY);
 }
 
-/** Reset all player data to a fresh default state */
+/** Reset all player data to a fresh default state.
+ *
+ * Clears:
+ * - The current SAVE_KEY entry
+ * - Any historical pon_save_v* entries (from older save formats)
+ * - Any catchapon:* entries (performance HUD pref, secrets-found cache, etc.)
+ * - sessionStorage for the same prefixes (in case any transient state lingers)
+ *
+ * Then writes a fresh default save and verifies it round-trips correctly.
+ */
 export function resetPlayerData(): boolean {
   try {
-    const keysToClear: string[] = [];
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
-      if (!key) continue;
-      if (key === SAVE_KEY || key.startsWith('pon_save') || key.startsWith('catchapon:')) {
-        keysToClear.push(key);
-      }
-    }
+    const matchesGameKey = (key: string) =>
+      key === SAVE_KEY ||
+      key.startsWith('pon_save') ||
+      key.startsWith('pon_') ||
+      key.startsWith('catchapon');
 
-    for (const key of keysToClear) {
-      localStorage.removeItem(key);
+    const removeMatching = (storage: Storage) => {
+      const toClear: string[] = [];
+      for (let i = 0; i < storage.length; i += 1) {
+        const key = storage.key(i);
+        if (key && matchesGameKey(key)) toClear.push(key);
+      }
+      for (const key of toClear) storage.removeItem(key);
+    };
+
+    removeMatching(window.localStorage);
+    try {
+      removeMatching(window.sessionStorage);
+    } catch {
+      // sessionStorage may be unavailable in some contexts; ignore.
     }
 
     const resetState = createDefaultGameState();

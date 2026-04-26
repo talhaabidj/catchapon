@@ -23,7 +23,7 @@ export class TaskSystem {
 
     if (count <= 0) return [];
 
-    const floorTemplate = TASK_TEMPLATES.find((t) => t.type === 'clean_floor');
+    const floorTemplates = TASK_TEMPLATES.filter((t) => t.targetType === 'floor');
 
     const criticalIssueCandidates: Array<{ templateId: string; targetId: string }> = [];
     const routineIssueCandidates: Array<{ templateId: string; targetId: string }> = [];
@@ -49,9 +49,14 @@ export class TaskSystem {
     this.shuffleInPlace(criticalIssueCandidates, rng);
     this.shuffleInPlace(routineIssueCandidates, rng);
 
-    const desiredFloorCount = floorTemplate
+    let desiredFloorCount = floorTemplates.length > 0
       ? Math.max(count > 1 ? 1 : 0, Math.round(count * 0.35))
       : 0;
+    // When we have both floor variants available, try to surface both in a
+    // typical night so mud and trash cleanup stay distinct tasks.
+    if (floorTemplates.length > 1 && count >= 4) {
+      desiredFloorCount = Math.max(desiredFloorCount, 2);
+    }
 
     const machineSlots = Math.max(0, count - desiredFloorCount);
     const requiredMachineSlots = Math.min(count, criticalIssueCandidates.length);
@@ -74,14 +79,20 @@ export class TaskSystem {
       });
     }
 
-    let floorTaskIndex = 0;
-    while (this.activeTasks.length < count && floorTemplate) {
+    let mudTaskIndex = 0;
+    let trashTaskIndex = 0;
+    let floorFillIndex = 0;
+    while (this.activeTasks.length < count && floorTemplates.length > 0) {
+      const floorTemplate = this.pickFloorTemplate(floorTemplates, floorFillIndex, rng);
+      const targetId = floorTemplate.type === 'pick_trash'
+        ? `trash-spot-${trashTaskIndex++}`
+        : `mud-spot-${mudTaskIndex++}`;
       this.activeTasks.push({
         templateId: floorTemplate.id,
-        targetId: `floor-spot-${floorTaskIndex}`,
+        targetId,
         isCompleted: false,
       });
-      floorTaskIndex += 1;
+      floorFillIndex += 1;
     }
 
     // If floor template is unavailable for any reason, backfill with extra issue tasks.
@@ -120,6 +131,9 @@ export class TaskSystem {
       (t) => t.targetType === 'machine',
     );
 
+    let mudTaskIndex = 0;
+    let trashTaskIndex = 0;
+    let floorTaskIndex = 0;
     for (let i = 0; i < count; i++) {
       // Mix of floor and machine tasks (~30% floor, ~70% machine)
       const isFloorTask = rng() < 0.3 && floorTaskTemplates.length > 0;
@@ -128,9 +142,11 @@ export class TaskSystem {
       let targetId: string;
 
       if (isFloorTask) {
-        const idx = Math.floor(rng() * floorTaskTemplates.length);
-        template = floorTaskTemplates[idx]!;
-        targetId = `floor-spot-${i}`;
+        template = this.pickFloorTemplate(floorTaskTemplates, floorTaskIndex, rng);
+        targetId = template.type === 'pick_trash'
+          ? `trash-spot-${trashTaskIndex++}`
+          : `mud-spot-${mudTaskIndex++}`;
+        floorTaskIndex += 1;
       } else {
         const idx = Math.floor(rng() * machineTaskTemplates.length);
         template = machineTaskTemplates[idx]!;
@@ -213,5 +229,22 @@ export class TaskSystem {
       const j = Math.floor(rng() * (i + 1));
       [arr[i], arr[j]] = [arr[j]!, arr[i]!];
     }
+  }
+
+  private pickFloorTemplate(
+    floorTemplates: readonly TaskTemplate[],
+    floorIndex: number,
+    rng: () => number,
+  ): TaskTemplate {
+    if (floorTemplates.length === 1) return floorTemplates[0]!;
+
+    const mudTemplate = floorTemplates.find((t) => t.type === 'clean_floor');
+    const trashTemplate = floorTemplates.find((t) => t.type === 'pick_trash');
+
+    if (floorIndex === 0 && mudTemplate) return mudTemplate;
+    if (floorIndex === 1 && trashTemplate) return trashTemplate;
+
+    const idx = Math.floor(rng() * floorTemplates.length);
+    return floorTemplates[idx]!;
   }
 }

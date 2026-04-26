@@ -91,9 +91,32 @@ describe('TaskSystem', () => {
 
     // Should have at least one floor task (when rng < 0.3)
     const floorTasks = allTasks.filter((t) =>
-      t.targetId.startsWith('floor-spot'),
+      t.targetId.startsWith('mud-spot')
+      || t.targetId.startsWith('trash-spot')
+      || t.targetId.startsWith('floor-spot'),
     );
     expect(floorTasks.length).toBeGreaterThan(0);
+  });
+
+  it('separates floor cleanup into mud and trash task variants when enough floor slots exist', () => {
+    const machineStates = new Map<string, MachineState>([
+      ['machine-neko', {
+        machineId: 'machine-neko',
+        cleanliness: 'dirty',
+        stockLevel: 'ok',
+        isJammed: false,
+        isPowered: true,
+      }],
+    ]);
+
+    const generated = tasks.generateTasksFromMaintenance(5, machineStates, () => 0.5);
+    const floorTasks = generated.filter((task) =>
+      task.targetId.startsWith('mud-spot-') || task.targetId.startsWith('trash-spot-'),
+    );
+
+    const templateIds = new Set(floorTasks.map((task) => task.templateId));
+    expect(templateIds.has('task-clean-floor')).toBe(true);
+    expect(templateIds.has('task-pick-trash')).toBe(true);
   });
 
   it('prioritizes critical machine blockers when slots are limited', () => {

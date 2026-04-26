@@ -64,7 +64,11 @@ export function ensureTokenStationIssueTask(
     return [...tasks, forcedTask];
   }
 
-  const replaceFloorIdx = tasks.findIndex((t) => t.targetId.startsWith('floor-spot-'));
+  const replaceFloorIdx = tasks.findIndex((t) =>
+    t.targetId.startsWith('floor-spot-')
+    || t.targetId.startsWith('mud-spot-')
+    || t.targetId.startsWith('trash-spot-')
+  );
   if (replaceFloorIdx >= 0) {
     const next = [...tasks];
     next[replaceFloorIdx] = forcedTask;
