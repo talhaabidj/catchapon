@@ -37,6 +37,8 @@ import {
   SECRET_DISCOVERY_BONUS,
   SHINY_ACCENT_COLOR,
   SHINY_PULL_CHANCE,
+  WONDERTRADE_COST,
+  WONDERTRADE_MAX_TRADES_PER_SHIFT,
 } from '../core/Config.js';
 import { loadGameState, saveGameState } from '../core/Save.js';
 
@@ -174,6 +176,7 @@ export class ShopScene implements Scene {
   private hasCapsuleRefill = false;
   private hasTokenRefill = false;
   private previewMachineId: string | null = null;
+  private wondertradeTradesUsedThisShift = 0;
 
   // Screen shake
   private shakeIntensity = 0;
@@ -224,6 +227,7 @@ export class ShopScene implements Scene {
   async init() {
     this.hasCapsuleRefill = false;
     this.hasTokenRefill = false;
+    this.wondertradeTradesUsedThisShift = 0;
 
     // RectAreaLight shader setup is only needed in the shop scene.
     // Deferring it keeps initial route JS lighter for faster LCP.
@@ -453,7 +457,7 @@ export class ShopScene implements Scene {
       } else {
         // Build contextual prompt
         const prompt = this.getContextualPrompt(target.type, target.prompt, target.object);
-        const promptActions = this.getContextualActions(target.type, target.object);
+        const promptActions = this.getContextualActions(target.type, target.prompt, target.object);
         showShopPrompt({
           title: target.type === 'machine' ? target.prompt : undefined,
           text: prompt,
@@ -563,17 +567,25 @@ export class ShopScene implements Scene {
       hasAnyCapsuleRestockNeed: this.hasAnyCapsuleRestockNeed(),
       hasAnyTokenRestockNeed: this.hasAnyTokenRestockNeed(),
       wondertradeOwnedIds: this.collection.getDuplicateCandidates(),
+      wondertradeCost: WONDERTRADE_COST,
+      wondertradeTradesUsed: this.wondertradeTradesUsedThisShift,
+      wondertradeMaxTradesPerShift: WONDERTRADE_MAX_TRADES_PER_SHIFT,
+      currentTokens: this.economy.getTokens(),
       items: [...ITEMS],
     });
   }
 
-  private getContextualActions(type: string, object?: THREE.Object3D): ShopPromptAction[] {
+  private getContextualActions(
+    type: string,
+    defaultPrompt: string,
+    object?: THREE.Object3D,
+  ): ShopPromptAction[] {
     const machineId = type === 'machine' && object ? getMachineId(object) : undefined;
     const machineState = machineId ? this.maintenance.getState(machineId) : undefined;
 
     return getShopContextualActions({
       type,
-      defaultPrompt: '',
+      defaultPrompt,
       machineId,
       machineState,
       tasks: this.tasks.getTasks(),
@@ -584,6 +596,10 @@ export class ShopScene implements Scene {
       hasAnyCapsuleRestockNeed: this.hasAnyCapsuleRestockNeed(),
       hasAnyTokenRestockNeed: this.hasAnyTokenRestockNeed(),
       wondertradeOwnedIds: this.collection.getDuplicateCandidates(),
+      wondertradeCost: WONDERTRADE_COST,
+      wondertradeTradesUsed: this.wondertradeTradesUsedThisShift,
+      wondertradeMaxTradesPerShift: WONDERTRADE_MAX_TRADES_PER_SHIFT,
+      currentTokens: this.economy.getTokens(),
       items: [...ITEMS],
     });
   }
@@ -1264,6 +1280,16 @@ export class ShopScene implements Scene {
 
   private handleWondertrade() {
     if (this.isPullInProgress) return;
+    if (this.wondertradeTradesUsedThisShift >= WONDERTRADE_MAX_TRADES_PER_SHIFT) {
+      gameAudio.play('error');
+      showToast('Wonder Exchange limit reached (2 per shift)', 1800);
+      return;
+    }
+    if (!this.economy.canSpendTokens(WONDERTRADE_COST)) {
+      gameAudio.play('error');
+      showToast(`Need ${WONDERTRADE_COST} tickets for Wonder Exchange`, 1800);
+      return;
+    }
 
     const owned = this.collection.getDuplicateCandidates();
     const status = getWondertradeStatus(owned, ITEMS);
@@ -1284,9 +1310,17 @@ export class ShopScene implements Scene {
       return;
     }
 
+    if (!this.economy.spendTokens(WONDERTRADE_COST)) {
+      gameAudio.play('error');
+      showToast(`Need ${WONDERTRADE_COST} tickets for Wonder Exchange`, 1800);
+      return;
+    }
+
     this.isPullInProgress = true;
+    this.wondertradeTradesUsedThisShift += 1;
     gameAudio.play('crank');
-    showShopPrompt({ text: 'Trading...', actions: [] });
+    this.updateHUD();
+    showShopPrompt({ text: `Trading... (${WONDERTRADE_COST} tickets)`, actions: [] });
 
     setTimeout(() => {
       hideShopPrompt();

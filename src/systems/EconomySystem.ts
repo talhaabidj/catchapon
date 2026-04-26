@@ -74,6 +74,19 @@ export class EconomySystem {
     return this.money >= TOKEN_PRICE;
   }
 
+  /** Spend an arbitrary number of tokens (used by wonder exchange). */
+  spendTokens(count: number): boolean {
+    if (count <= 0) return true;
+    if (this.tokens < count) return false;
+    this.tokens -= count;
+    return true;
+  }
+
+  canSpendTokens(count: number): boolean {
+    if (count <= 0) return true;
+    return this.tokens >= count;
+  }
+
   /** Load state */
   loadState(money: number, tokens: number) {
     this.money = money;

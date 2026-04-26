@@ -33,7 +33,7 @@ const ACCENT_COLORS: Record<string, number> = {
   'machine-pixel': 0xf0c06e,
   'machine-mix-a': 0xcc88ff,
   'machine-mix-b': 0xff88cc,
-  'machine-wondertrade': 0xffffff,
+  'machine-wondertrade': 0xd5bc74,
   'machine-hidden': 0x7c6ef0,
 };
 
@@ -111,8 +111,15 @@ export function createCapsuleMachine(
   const stockLevel = state?.stockLevel ?? 'ok';
   const isOutOfStock = stockLevel === 'empty';
   const isLowStock = stockLevel === 'low';
+  const isWondertradeMachine = def.id === 'machine-wondertrade';
 
   const buildTier = (yOffset: number) => {
+    const wonderBodyColor = 0x2f0f45;
+    const wonderCreamColor = 0xe8d9a6;
+    const wonderPillarColor = 0xb8dfc8;
+    const wonderDialColor = 0x3c3028;
+    const wonderMarqueeColor = 0x5b3b79;
+
     // Shared Materials
     const metalMat = new THREE.MeshStandardMaterial({
       color: 0x888888,
@@ -120,13 +127,23 @@ export function createCapsuleMachine(
       metalness: 0.8,
     });
     const plasticMat = new THREE.MeshStandardMaterial({
-      color: 0xeaeaea,
-      roughness: 0.5,
+      color: isWondertradeMachine ? wonderBodyColor : 0xeaeaea,
+      roughness: isWondertradeMachine ? 0.56 : 0.5,
       metalness: 0.1,
+    });
+    const wonderCreamMat = new THREE.MeshStandardMaterial({
+      color: wonderCreamColor,
+      roughness: 0.45,
+      metalness: 0.06,
     });
     const darkMat = new THREE.MeshStandardMaterial({
       color: 0x222222,
       roughness: 0.9,
+    });
+    const dialMat = new THREE.MeshStandardMaterial({
+      color: isWondertradeMachine ? wonderDialColor : 0x888888,
+      roughness: 0.35,
+      metalness: 0.65,
     });
 
     const glassMat = new THREE.MeshStandardMaterial({
@@ -162,14 +179,16 @@ export function createCapsuleMachine(
     machine.add(chuteFlap);
 
     // Giant Gacha Dial (Right-center aligned)
-    const dialHub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 32), metalMat);
+    const dialHub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 32), dialMat);
     dialHub.rotation.x = Math.PI / 2;
     dialHub.position.set(0.18, 0.75 + yOffset, 0.38);
     machine.add(dialHub);
 
     // Crank Bowtie Action
     const crankAccent = new THREE.MeshStandardMaterial({
-      color: accentColor, roughness: 0.3, metalness: 0.5
+      color: isWondertradeMachine ? wonderCreamColor : accentColor,
+      roughness: 0.3,
+      metalness: 0.5,
     });
     const crank = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.2, 0.06), crankAccent);
     crank.position.set(0.18, 0.75 + yOffset, 0.41);
@@ -177,7 +196,10 @@ export function createCapsuleMachine(
     machine.add(crank);
 
     // Coin slot (Left side)
-    const coinPlate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.02), metalMat);
+    const coinPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.16, 0.02),
+      isWondertradeMachine ? darkMat : metalMat,
+    );
     coinPlate.position.set(-0.2, 0.75 + yOffset, 0.38);
     machine.add(coinPlate);
     
@@ -186,13 +208,18 @@ export function createCapsuleMachine(
     machine.add(coinSlit);
 
     // —— Display Box (The transparent acrylic upper housing) ——
-    const displayFloor = new THREE.Mesh(new THREE.BoxGeometry(0.81, 0.02, 0.71), metalMat);
+    const displayFloor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.81, 0.02, 0.71),
+      isWondertradeMachine ? wonderCreamMat : metalMat,
+    );
     displayFloor.position.set(0, 1.06 + yOffset, 0);
     machine.add(displayFloor);
 
     // 4 Colored Edge Pillars framing the glass
     const pillarMat = new THREE.MeshStandardMaterial({
-      color: accentColor, roughness: 0.4, metalness: 0.3
+      color: isWondertradeMachine ? wonderPillarColor : accentColor,
+      roughness: 0.4,
+      metalness: 0.3,
     });
     const pillarGeo = new THREE.BoxGeometry(0.08, 0.6, 0.08);
     
@@ -226,22 +253,31 @@ export function createCapsuleMachine(
     }
 
     // —— Header / Top marquee sign ——
-    const topLid = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.15, 0.75), plasticMat);
+    const topLid = new THREE.Mesh(
+      new THREE.BoxGeometry(0.85, 0.15, 0.75),
+      isWondertradeMachine ? wonderCreamMat : plasticMat,
+    );
     topLid.position.set(0, 1.725 + yOffset, 0);
     machine.add(topLid);
 
     const topMarqueeBody = new THREE.Mesh(
       new THREE.BoxGeometry(0.62, 0.3, 0.08),
-      metalMat,
+      isWondertradeMachine
+        ? new THREE.MeshStandardMaterial({
+          color: wonderMarqueeColor,
+          roughness: 0.5,
+          metalness: 0.14,
+        })
+        : metalMat,
     );
     topMarqueeBody.position.set(0, 1.97 + yOffset, 0);
     machine.add(topMarqueeBody);
 
-    const labelTexture = createTopMarqueeTexture(def.name, accentColor);
+    const labelTexture = isWondertradeMachine ? null : createTopMarqueeTexture(def.name, accentColor);
     const labelMatParams: THREE.MeshStandardMaterialParameters = {
-      color: 0xffffff,
+      color: isWondertradeMachine ? wonderCreamColor : 0xffffff,
       emissive: accentColor,
-      emissiveIntensity: 0.35,
+      emissiveIntensity: isWondertradeMachine ? 0.12 : 0.35,
       roughness: 0.35,
       metalness: 0.05,
     };
@@ -256,6 +292,22 @@ export function createCapsuleMachine(
     );
     topMarqueeFace.position.set(0, 1.97 + yOffset, 0.041);
     machine.add(topMarqueeFace);
+
+    if (isWondertradeMachine) {
+      const frontBadgeFrame = new THREE.Mesh(
+        new THREE.BoxGeometry(0.35, 0.12, 0.014),
+        darkMat,
+      );
+      frontBadgeFrame.position.set(0, 0.98 + yOffset, 0.382);
+      machine.add(frontBadgeFrame);
+
+      const frontBadge = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.08, 0.01),
+        wonderCreamMat,
+      );
+      frontBadge.position.set(0, 0.98 + yOffset, 0.389);
+      machine.add(frontBadge);
+    }
 
     // —— Maintenance LED Clusters ——
     const ledColor = isPowered ? 0x44ff44 : 0xff2222;

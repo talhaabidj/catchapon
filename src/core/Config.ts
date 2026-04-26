@@ -20,6 +20,8 @@ export const PLAYER_RADIUS = 0.3; // collision capsule radius
 // ————————————————————————————————
 export const TOKEN_PRICE = 12; // Catcha Credits per token
 export const PULL_COST = 1; // tokens per gacha pull
+export const WONDERTRADE_COST = 5; // tokens (tickets) per wonder exchange
+export const WONDERTRADE_MAX_TRADES_PER_SHIFT = 2;
 export const SECRET_DISCOVERY_BONUS = 24; // Catcha Credits
 export const TOKEN_PACK_OPTIONS = [1, 3, 5] as const;
 // Rare reward: when the player services a jammed machine, this probability

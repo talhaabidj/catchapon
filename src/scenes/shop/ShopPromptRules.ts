@@ -18,6 +18,10 @@ export interface ShopPromptContextInput {
   hasAnyCapsuleRestockNeed: boolean;
   hasAnyTokenRestockNeed: boolean;
   wondertradeOwnedIds: string[];
+  wondertradeCost: number;
+  wondertradeTradesUsed: number;
+  wondertradeMaxTradesPerShift: number;
+  currentTokens: number;
   items: Item[];
 }
 
@@ -95,6 +99,12 @@ export function getContextualPrompt(input: ShopPromptContextInput): string {
 
   if (input.type === 'shop-exit') return 'End Shift';
   if (input.type === 'wondertrade') {
+    if (input.wondertradeTradesUsed >= input.wondertradeMaxTradesPerShift) {
+      return 'Wonder Exchange (shift limit reached)';
+    }
+    if (input.currentTokens < input.wondertradeCost) {
+      return `Wonder Exchange (need ${input.wondertradeCost} tickets)`;
+    }
     const status = getWondertradeStatus(input.wondertradeOwnedIds, input.items);
     if (!status.canTrade && status.reason === 'need-owned-items') {
       return 'Wonder Exchange (need collected items)';
@@ -148,7 +158,15 @@ export function getContextualActions(input: ShopPromptContextInput): ShopPromptA
     const isTrashPrompt = /trash/i.test(input.defaultPrompt);
     return [{ key: 'E', label: isTrashPrompt ? 'Pick' : 'Scrub' }];
   }
-  if (input.type === 'wondertrade') return [{ key: 'E', label: 'Trade' }];
+  if (input.type === 'wondertrade') {
+    const status = getWondertradeStatus(input.wondertradeOwnedIds, input.items);
+    const canAfford = input.currentTokens >= input.wondertradeCost;
+    const hasShiftUsesRemaining = input.wondertradeTradesUsed < input.wondertradeMaxTradesPerShift;
+    if (!status.canTrade || !canAfford || !hasShiftUsesRemaining) {
+      return [];
+    }
+    return [{ key: 'E', label: 'Trade' }];
+  }
   if (input.type === 'shop-exit') return [{ key: 'E', label: 'End Shift' }];
   if (input.type === 'secret') return [{ key: 'E', label: 'Inspect' }];
 
