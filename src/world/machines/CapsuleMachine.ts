@@ -116,7 +116,7 @@ export function createCapsuleMachine(
   const buildTier = (yOffset: number) => {
     const wonderBodyColor = 0x2f0f45;
     const wonderCreamColor = 0xe8d9a6;
-    const wonderPillarColor = 0xb8dfc8;
+    const wonderPillarColor = 0xd5bc74;
     const wonderDialColor = 0x3c3028;
     const wonderMarqueeColor = 0x5b3b79;
 
@@ -255,7 +255,13 @@ export function createCapsuleMachine(
     // —— Header / Top marquee sign ——
     const topLid = new THREE.Mesh(
       new THREE.BoxGeometry(0.85, 0.15, 0.75),
-      isWondertradeMachine ? wonderCreamMat : plasticMat,
+      isWondertradeMachine
+        ? new THREE.MeshStandardMaterial({
+          color: wonderMarqueeColor,
+          roughness: 0.52,
+          metalness: 0.1,
+        })
+        : plasticMat,
     );
     topLid.position.set(0, 1.725 + yOffset, 0);
     machine.add(topLid);
@@ -273,9 +279,10 @@ export function createCapsuleMachine(
     topMarqueeBody.position.set(0, 1.97 + yOffset, 0);
     machine.add(topMarqueeBody);
 
-    const labelTexture = isWondertradeMachine ? null : createTopMarqueeTexture(def.name, accentColor);
+    const marqueeLabel = isWondertradeMachine ? 'WONDER TRADE' : def.name;
+    const labelTexture = createTopMarqueeTexture(marqueeLabel, accentColor);
     const labelMatParams: THREE.MeshStandardMaterialParameters = {
-      color: isWondertradeMachine ? wonderCreamColor : 0xffffff,
+      color: labelTexture ? 0xffffff : isWondertradeMachine ? wonderCreamColor : 0xffffff,
       emissive: accentColor,
       emissiveIntensity: isWondertradeMachine ? 0.12 : 0.35,
       roughness: 0.35,

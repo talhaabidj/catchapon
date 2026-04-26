@@ -12,8 +12,55 @@ type BootModules = {
   BootScene: (typeof import('./scenes/BootScene.js'))['BootScene'];
 };
 
+type WavedashSDK = {
+  init(options?: { debug?: boolean }): void;
+  updateLoadProgressZeroToOne(progress: number): void;
+};
+
+declare global {
+  interface Window {
+    Wavedash?: Promise<WavedashSDK>;
+  }
+}
+
 let bootModulesPreload: Promise<BootModules | null> | null = null;
 let didStartBoot = false;
+let wavedashSdkPromise: Promise<WavedashSDK | null> | null = null;
+let wavedashDidInit = false;
+
+function getWavedashSdk(): Promise<WavedashSDK | null> {
+  if (!wavedashSdkPromise) {
+    const sdkSource = window.Wavedash;
+    if (!sdkSource) {
+      wavedashSdkPromise = Promise.resolve(null);
+    } else {
+      wavedashSdkPromise = sdkSource
+        .then((sdk) => sdk)
+        .catch((err) => {
+          console.warn('Wavedash SDK unavailable:', err);
+          return null;
+        });
+    }
+  }
+  return wavedashSdkPromise;
+}
+
+function syncWavedashProgress(progressZeroToOne: number) {
+  const clamped = Math.max(0, Math.min(1, progressZeroToOne));
+  void getWavedashSdk().then((sdk) => {
+    if (!sdk) return;
+    sdk.updateLoadProgressZeroToOne(clamped);
+  });
+}
+
+function initWavedashIfAvailable() {
+  if (wavedashDidInit) return;
+  void getWavedashSdk().then((sdk) => {
+    if (!sdk || wavedashDidInit) return;
+    sdk.init({ debug: !import.meta.env.PROD });
+    wavedashDidInit = true;
+  });
+}
 
 function waitForPaint(): Promise<void> {
   return new Promise((resolve) => {
@@ -35,8 +82,12 @@ function scheduleIdle(work: () => void, timeoutMs = 1200) {
 }
 
 function setLoadingProgress(progressEl: HTMLElement | null, pct: number) {
-  if (!progressEl) return;
-  progressEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  const clamped = Math.max(0, Math.min(100, pct));
+  if (progressEl) {
+    progressEl.style.width = `${clamped}%`;
+  }
+  // Wavedash expects normalized loading progress so it can dismiss platform loading.
+  syncWavedashProgress(clamped / 100);
 }
 
 function setLoadingStatus(statusEl: HTMLElement | null, text: string) {
@@ -91,6 +142,7 @@ async function bootGame(
 
   await game.sceneManager.switchTo(new modules.BootScene(game));
   setLoadingProgress(progressEl, 100);
+  initWavedashIfAvailable();
 }
 
 async function main() {
@@ -105,6 +157,7 @@ async function main() {
   const tipEl = document.querySelector('.loading-tip') as HTMLElement | null;
 
   await waitForPaint();
+  syncWavedashProgress(0);
 
   // Speed Insights runs in production; dev injection logs debug-mode notices.
   if (import.meta.env.PROD) {
