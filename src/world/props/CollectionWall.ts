@@ -4,9 +4,9 @@
  * INTERACTABLE — opens the Collection viewer overlay.
  *
  * Layout: 6 columns × 6 rows, where:
- *   - Each column maps to one ItemSet (left → right matches SETS order).
- *   - Each row maps to one rarity (top → bottom: mythical, legendary,
- *     epic, rare, uncommon, common).
+ *   - Each row maps to one ItemSet (top → bottom matches SETS order).
+ *   - Each column maps to one rarity tier (left → right: common,
+ *     uncommon, rare, epic, legendary, mythical).
  *
  * Display stands are silver. Legendary and mythical slots get a fancier
  * stand variant with accent rings; common → epic share a simple silver
@@ -28,18 +28,19 @@ const RARITY_COLORS: Record<Rarity, number> = {
   mythical: 0xf472b6,
 };
 
-// Top → bottom row order. Most-rare on top so the eye reads "trophy first."
-const RARITY_ROW_ORDER: readonly Rarity[] = [
-  'mythical',
-  'legendary',
-  'epic',
-  'rare',
-  'uncommon',
+// Left → right column order. Player reads "common first → trophy last"
+// across each row, where each row is a single set.
+const RARITY_COL_ORDER: readonly Rarity[] = [
   'common',
+  'uncommon',
+  'rare',
+  'epic',
+  'legendary',
+  'mythical',
 ];
 
-const ROWS = RARITY_ROW_ORDER.length; // 6
-const COLS = SETS.length;             // 6
+const ROWS = SETS.length;             // 6 sets, one row each
+const COLS = RARITY_COL_ORDER.length; // 6 rarity tiers
 
 type StandVariant = 'simple' | 'legendary' | 'mythical';
 
@@ -370,9 +371,9 @@ function buildMythicalStand(
 /**
  * Update the collection wall to visually reflect owned items.
  *
- * Items are placed deterministically by (set column, rarity row): each
- * column corresponds to one ItemSet in SETS order, each row to a rarity
- * tier (mythical at top → common at bottom). Display stand variant is
+ * Items are placed deterministically by (set row, rarity column): each
+ * row corresponds to one ItemSet in SETS order, each column to a rarity
+ * tier (common at left → mythical at right). Display stand variant is
  * picked from the item's rarity (simple / legendary / mythical).
  */
 export function updateCollectionWallVisuals(
@@ -385,8 +386,8 @@ export function updateCollectionWallVisuals(
   // Build a (row, col) → item lookup so unowned slots can be hidden.
   const slotItem = new Map<string, Pick<Item, 'rarity' | 'setId'>>();
   for (const item of ownedItems) {
-    const col = SETS.findIndex((s) => s.id === item.setId);
-    const row = RARITY_ROW_ORDER.indexOf(item.rarity);
+    const row = SETS.findIndex((s) => s.id === item.setId);
+    const col = RARITY_COL_ORDER.indexOf(item.rarity);
     if (col < 0 || row < 0) continue;
     slotItem.set(`${row}-${col}`, item);
   }
