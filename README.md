@@ -153,17 +153,6 @@ zip -r ../catchapon-itch-upload.zip .
 
 Upload `catchapon-itch-upload.zip` as an HTML5/browser game. The ZIP must contain `index.html` at the root.
 
-### Wavedash
-
-The production build is static and Wavedash-ready.
-
-```bash
-npm run build
-wavedash build push
-```
-
-Before using the Wavedash CLI, set the correct game id in `wavedash.toml`.
-
 ## Quality Bar
 
 Before a release, run:
